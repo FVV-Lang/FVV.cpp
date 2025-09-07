@@ -12,12 +12,12 @@
 
 #pragma once
 
-#define FVV_API 1
-
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <numeric>
 #include <sstream>
+#include <stack>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -59,16 +59,14 @@ namespace FVV {
 					  find_if(this->begin(), this->end(), [&key](auto const& p) { return p.key() == key; });
 				  it != this->end())
 				  return it->value();
-			  this->emplace_back(key, _valTp());
-			  return this->back().value();
+			  return this->emplace_back(key, _valTp()), this->back().value();
 		}
 		FVV_INLINE _keyTp& operator()(_valTp const& value) {
 			if (auto it = find_if(this->begin(), this->end(),
 								  [&value](auto const& p) { return p.value() == value; });
 				it != this->end())
 				return it->key();
-			this->emplace_back(_keyTp(), value);
-			return this->back().key();
+			return this->emplace_back(_keyTp(), value), this->back().key();
 		}
 		FVV_INLINE bool hasKey(_keyTp const& key) const {
 			return any_of(this->begin(), this->end(), [&key](auto const& p) { return p.key() == key; });
@@ -116,8 +114,8 @@ namespace FVV {
 	};
 	class FVVV {
 	public:
-		using FVVVT =
-			variant<monostate, bool, int, double, str, vec<bool>, vec<int>, vec<double>, vec<str>>;
+		using FVVVT = variant<monostate, bool, int, double, str, vec<bool>, vec<int>, vec<double>,
+							  vec<str>, vec<FVVV>>;
 		/// @brief 值
 		FVVVT value;
 		/// @brief 子值
@@ -222,11 +220,11 @@ namespace FVV {
 		/// @param  为“min”时最小化输出
 		/// @param  为“biglist”时会把值组内每个值换行输出
 		/// @return FVV文本格式格式化后的值
-		FVV_INLINE str print(strv type = "common") const {
+		FVV_INLINE str print(strv type = "common", size_t indent_lv = 0) const {
 			bool is_min = type == "min", is_biglist = type == "biglist", is_nodesc = type == "nodesc";
 			stringstream result;
 
-			function<void(strv, const FVVV*, size_t)> const print_func = [&](auto path, auto const* node,
+			function<void(strv, FVVV const*, size_t)> const print_func = [&](auto path, auto const* node,
 																			 auto indent_lv) {
 				if (path.empty() || (node->isEmpty() && node->sub.empty())) return;
 				str indent(indent_lv * 2, ' ');
@@ -246,62 +244,54 @@ namespace FVV {
 					else if (node->template isType<double>())
 						result << to_string(node->template as<double>());
 					else if (node->template isType<vec<str>>() || node->template isType<vec<bool>>()
-							 || node->template isType<vec<int>>()
-							 || node->template isType<vec<double>>()) {
+							 || node->template isType<vec<int>>() || node->template isType<vec<double>>()
+							 || node->template isType<vec<FVVV>>()) {
 						result << '[';
-						str vec_indent((indent_lv + 1) * 2, ' ');
-						if (is_biglist) result << '\n';
+						str list_indent((indent_lv + 1) * 2, ' ');
+						if (is_biglist || (!is_min && node->template isType<vec<FVVV>>())) result << '\n';
+
 						bool is_empty_list = true;
-						if (node->template isType<vec<str>>()) {
-							auto const tmp = node->template as<vec<str>>();
+						if (node->template isType<vec<str>>())
+							is_empty_list = writeList(
+								result, node->template as<vec<str>>(), is_biglist, is_min, list_indent,
+								function<void(stringstream&, str const&)>([](auto& ss, auto const& v) {
+								ss << '"' << _replace(v, "\"", "\\\"") << '"';
+							}));
+						else if (node->template isType<vec<bool>>())
+							is_empty_list = writeList(
+								result, node->template as<vec<bool>>(), is_biglist, is_min, list_indent,
+								function<void(stringstream&, bool const&)>(
+									[](auto& ss, auto const& v) { ss << str(v ? "true" : "false"); }));
+						else if (node->template isType<vec<int>>())
+							is_empty_list = writeList(
+								result, node->template as<vec<int>>(), is_biglist, is_min, list_indent,
+								function<void(stringstream&, int const&)>(
+									[](auto& ss, auto const& v) { ss << to_string(v); }));
+						else if (node->template isType<vec<double>>())
+							is_empty_list = writeList(
+								result, node->template as<vec<double>>(), is_biglist, is_min, list_indent,
+								function<void(stringstream&, double const&)>(
+									[](auto& ss, auto const& v) { ss << to_string(v); }));
+						else if (node->template isType<vec<FVVV>>()) {
+							auto const tmp = node->template as<vec<FVVV>>();
 							is_empty_list  = tmp.empty();
 							for (auto const& value : tmp) {
-								if (is_biglist) result << vec_indent;
-								result << '"' << _replace(value, "\"", "\\\"") << '"';
-								if (is_biglist) result << '\n';
-								else {
-									result << ',';
+								if (!is_min) result << list_indent;
+								result << '{';
+								if (!is_min) result << '\n';
+								result << value.print(type, indent_lv + 2);
+								if (is_min) result << ";}";
+								else result << '\n' << list_indent << '}';
+								if (!value.desc.empty()) {
 									if (!is_min) result << ' ';
+									result << '<' << _replace(value.desc, ">", "\\>") << '>';
 								}
-							}
-						} else if (node->template isType<vec<bool>>()) {
-							auto const tmp = node->template as<vec<bool>>();
-							is_empty_list  = tmp.empty();
-							for (auto const& value : tmp) {
-								if (is_biglist) result << vec_indent;
-								result << str(value ? "true" : "false");
-								if (is_biglist) result << '\n';
-								else {
-									result << ',';
-									if (!is_min) result << ' ';
-								}
-							}
-						} else if (node->template isType<vec<int>>()) {
-							auto const tmp = node->template as<vec<int>>();
-							is_empty_list  = tmp.empty();
-							for (auto const& value : tmp) {
-								if (is_biglist) result << vec_indent;
-								result << to_string(value);
-								if (is_biglist) result << '\n';
-								else {
-									result << ',';
-									if (!is_min) result << ' ';
-								}
-							}
-						} else if (node->template isType<vec<double>>()) {
-							auto const tmp = node->template as<vec<double>>();
-							is_empty_list  = tmp.empty();
-							for (auto const& value : tmp) {
-								if (is_biglist) result << vec_indent;
-								result << to_string(value);
-								if (is_biglist) result << '\n';
-								else {
-									result << ',';
-									if (!is_min) result << ' ';
-								}
+								if (is_min) result << ',';
+								else result << '\n';
 							}
 						}
-						if (is_biglist) result << indent;
+						if (is_biglist || (!is_min && node->template isType<vec<FVVV>>()))
+							result << indent;
 						else if (!is_empty_list) {
 							_removeLastChar(result);
 							if (!is_min) _removeLastChar(result);
@@ -319,9 +309,8 @@ namespace FVV {
 				if (is_min) result << ';';
 				else result << '\n';
 			};
-			for (auto const& [k, v] : sub) print_func(k, &v, 0);
-			_removeLastChar(result);
-			return result.str();
+			for (auto const& [k, v] : sub) print_func(k, &v, indent_lv);
+			return _removeLastChar(result), result.str();
 		}
 		/// @brief     解析字符串到此FVVV
 		/// @param txt FVV文本格式的字符串
@@ -334,72 +323,65 @@ namespace FVV {
 			txt			 = start == str::npos ? "" : txt.substr(start);
 			if (txt.empty()) return;
 			if (txt.back() != '}' && txt.back() != '\n') txt += '\n';
-			_replaceBase(txt, "\r\n", "\n");
-			_replaceBase(txt, "\r", "\n");
-			_shrink(&txt);
-			stringstream  tmp_desc, value, value_name;
-			str			  idx_desc;
-			vec<str>	  group_names, value_names, values;
-			vec<vec<str>> last_group_names;
-			bool		  end_group = false, old_fvv = false, is_real_char = false, in_value = false,
-				 in_desc = false, in_str = false, is_str = false, is_all_str = false,
-				 is_empty_str = false, in_list = false, is_list = false;
-			size_t	group_num	   = 0;
-			uint8_t last_char_size = 0;
-			FVVV*	root_key = this;
+			_replaceBase(txt, "\r\n", "\n"), _replaceBase(txt, "\r", "\n"), _shrink(&txt);
+			struct FVVVDat {
+				stringstream  value_name;
+				str			  idx_desc;
+				vec<str>	  group_names, value_names;
+				vec<vec<str>> last_group_names;
+				vec<FVVV>	  tmp_fvvs;
+				bool		  in_value = false, in_list = false, is_list = false;
+				size_t		  group_num = 0;
+				FVVV		  fvvv;
+			};
+			stringstream tmp_desc, value;
+			vec<str>	 values;
+			bool		 old_fvv = false, end_group = false, is_real_char = false, in_desc = false,
+				 in_str = false, is_str = false, is_all_str = false, is_empty_str = false;
+			uint8_t		   last_char_size = 0;
+			FVVVDat		   root_dat;
+			stack<FVVVDat> fvv_stack;
 			_utf8ForEach(txt, txt.size(),
 						 [&](auto const& idx, auto idx_char, auto const& char_size) -> bool {
-				FVVV* idx_key  = root_key;
-				is_real_char   = idx >= 1
-								   ? (last_char_size == 1 ? (txt[idx - 1] != '\\' ? true : false) : true)
-								   : true;
-				last_char_size = char_size;
-				if (in_desc) {
+				FVVV*	 root_key = fvv_stack.empty() ? this : &fvv_stack.top().fvvv;
+				FVVV*	 idx_key  = root_key;
+				FVVVDat* idx_dat  = fvv_stack.empty() ? &root_dat : &fvv_stack.top();
+				is_real_char	  = idx >= 1
+									  ? (last_char_size == 1 ? (txt[idx - 1] != '\\' ? true : false) : true)
+									  : true;
+				last_char_size	  = char_size;
+				if (in_desc)
 					if (idx_char != ">" || !is_real_char) {
-						if (idx_char == ">" && !is_real_char) _removeLastChar(tmp_desc);
-						if (in_value || group_num > 0) tmp_desc << idx_char;
+						if (idx_char == ">") _removeLastChar(tmp_desc);
+						if (idx_dat->in_value || idx_dat->group_num > 0) tmp_desc << idx_char;
 						return false;
 					} else {
-						idx_desc = tmp_desc.str();
-						tmp_desc.str("");
-						tmp_desc.clear();
-						_shrink(&idx_desc);
-						in_desc = false;
-						return false;
+						idx_dat->idx_desc = tmp_desc.str();
+						tmp_desc.str(""), tmp_desc.clear(), _shrink(&idx_dat->idx_desc);
+						return in_desc = false, false;
 					}
-				} else {
+				else {
 					if (!in_str && (idx_char == " " || idx_char == "\t")) return false;
-					if (idx_char == "<") {
-						in_desc = true;
-						return false;
-					}
+					if (idx_char == "<") return in_desc = true, false;
 				}
-				if (in_value) {
-					if (in_str) {
+				if (idx_dat->in_value) {
+					if (in_str)
 						if (idx_char == "\"") {
 							if (is_real_char) {
-								is_empty_str = value.str().empty();
-								in_str		 = false;
-								return false;
+								is_empty_str  = value.str().empty();
+								return in_str = false, false;
 							} else {
 								_removeLastChar(value);
-								value << idx_char;
-								return false;
+								return value << idx_char, false;
 							}
-						} else {
-							value << idx_char;
-							return false;
-						}
-					} else if (idx_char == "\"") {
-						in_str = is_str = is_all_str = true;
-						return false;
-					} else if (idx_char == "[") {
-						in_list = is_list = true;
-						return false;
-					} else if (in_list && _eqOr(idx_char, strv(","), strv("]"), strv("\n"))) {
+						} else return value << idx_char, false;
+					else if (idx_char == "\"") return in_str = is_str = is_all_str = true, false;
+					else if (idx_char == "[") return idx_dat->in_list = idx_dat->is_list = true, false;
+					else if (idx_dat->in_list && idx_char == "{") return fvv_stack.push(FVVVDat()), false;
+					else if (idx_dat->in_list && _eqOr(idx_char, strv(","), strv("]"), strv("\n"))) {
 						str const value_str = value.str();
 						if (idx_char == "]") {
-							in_list				= false;
+							idx_dat->in_list	= false;
 							size_t pos			= 1;
 							bool   in_list_desc = false;
 							for (;;) {
@@ -410,7 +392,7 @@ namespace FVV {
 											if (idx - pos < 1 || txt[idx - pos - 1] != '\\')
 												in_list_desc = false;
 											return false;
-										case '>' : in_list_desc = true; return false;
+										case '>' : return in_list_desc = true, false;
 										case ' ' :
 										case '\t': return false;
 										case ',' :
@@ -422,11 +404,13 @@ namespace FVV {
 								++pos;
 							}
 							if (txt[idx - pos] == ',' || txt[idx - pos] == '\n') return false;
-						} else if (value_str.empty() && (!is_all_str || !is_empty_str)) return false;
+						} else if (idx_dat->tmp_fvvs.empty() && value_str.empty()
+								   && (!is_all_str || !is_empty_str))
+							return false;
 						if ((is_all_str && is_str) || _eqOr(value_str, str("true"), str("false"))
 							|| _isInt(value_str) || _isDouble(value_str))
 							values.push_back(value_str);
-						else if (idx_key = _getKey({value_str}, _getKey(group_names, idx_key));
+						else if (idx_key = _getKey({value_str}, _getKey(idx_dat->group_names, idx_key));
 								 idx_key->isNotEmpty()) {
 							if (idx_key->isType<str>()) values.push_back(idx_key->as<str>());
 							else if (idx_key->isType<bool>())
@@ -450,26 +434,30 @@ namespace FVV {
 								vec<double> const tmp = idx_key->as<vec<double>>();
 								transform(tmp.begin(), tmp.end(), back_inserter(values),
 										  [](double v) { return to_string(v); });
+							} else if (idx_key->isType<vec<FVVV>>()) {
+								vec<FVVV> const tmp = idx_key->as<vec<FVVV>>();
+								idx_dat->tmp_fvvs.insert(idx_dat->tmp_fvvs.end(), tmp.begin(), tmp.end());
 							}
 						}
-						if (is_empty_str) is_empty_str = false;
-						else {
-							value.str("");
-							value.clear();
+						if (idx_dat->tmp_fvvs.size() && !idx_dat->idx_desc.empty()) {
+							idx_dat->tmp_fvvs.back().desc = idx_dat->idx_desc;
+							_clearAndShrink(&idx_dat->idx_desc);
 						}
-						is_str = false;
-						return false;
+						if (is_empty_str) is_empty_str = false;
+						else value.str(""), value.clear();
+						return is_str = false, false;
 					} else if (idx_char == "{") {
-						group_names.insert(group_names.end(), value_names.begin(), value_names.end());
-						last_group_names.push_back(value_names);
-						_clearAndShrink(&value_names);
-						++group_num;
-						in_value = false;
-						return false;
-					} else if (!in_list && _eqOr(idx_char, strv(";"), strv("\n"))) {
-						idx_key = _getKey(value_names, _getKey(group_names, idx_key));
-						if (is_list) {
-							if (values.empty()) *idx_key = FVVV();
+						idx_dat->group_names.insert(idx_dat->group_names.end(),
+													idx_dat->value_names.begin(),
+													idx_dat->value_names.end());
+						idx_dat->last_group_names.push_back(idx_dat->value_names),
+							_clearAndShrink(&idx_dat->value_names);
+						return ++idx_dat->group_num, idx_dat->in_value = false, false;
+					} else if (!idx_dat->in_list && _eqOr(idx_char, strv(";"), strv("\n"))) {
+						idx_key = _getKey(idx_dat->value_names, _getKey(idx_dat->group_names, idx_key));
+						if (idx_dat->is_list) {
+							if (values.empty() && idx_dat->tmp_fvvs.empty()) *idx_key = FVVV();
+							else if (!idx_dat->tmp_fvvs.empty()) *idx_key = idx_dat->tmp_fvvs;
 							else if (is_all_str) *idx_key = values;
 							else {
 								str tmp_str = values.front();
@@ -504,46 +492,42 @@ namespace FVV {
 								idx_key->link = value_str;
 							}
 						}
-						idx_key->desc = idx_desc;
-						value.str("");
-						value.clear();
-						_clearAndShrink(&idx_desc, &values, &value_names);
-						is_list = is_str = is_all_str = in_value = false;
+						idx_key->desc = idx_dat->idx_desc;
+						value.str(""), value.clear();
+						_clearAndShrink(&idx_dat->idx_desc, &values, &idx_dat->value_names,
+										&idx_dat->tmp_fvvs);
+						idx_dat->is_list = is_str = is_all_str = idx_dat->in_value = false;
 						return false;
-					} else {
-						value << idx_char;
-						return false;
-					}
-				} else if (!old_fvv && idx_char == "{" && value_name.str().empty()) {
-					old_fvv = true;
-					return false;
-				} else if (idx_char == "=") {
-					value_names = _split(value_name.str(), '.');
-					value_name.str("");
-					value_name.clear();
-					in_value = true;
-					return false;
-				} else if (end_group && _eqOr(idx_char, strv(";"), strv("\n")) && group_num > 0) {
+					} else return value << idx_char, false;
+				} else if (!old_fvv && idx_char == "{" && idx_dat->value_name.str().empty())
+					return old_fvv = true, false;
+				else if (idx_char == "=") {
+					idx_dat->value_names = _split(idx_dat->value_name.str(), '.');
+					idx_dat->value_name.str(""), idx_dat->value_name.clear();
+					return idx_dat->in_value = true, false;
+				} else if (end_group && _eqOr(idx_char, strv(";"), strv("\n"))
+						   && idx_dat->group_num > 0) {
 					end_group = false;
-					if (!idx_desc.empty()) {
-						_getKey(group_names, idx_key)->desc = idx_desc;
-						_clearAndShrink(&idx_desc);
+					if (!idx_dat->idx_desc.empty()) {
+						_getKey(idx_dat->group_names, idx_key)->desc = idx_dat->idx_desc;
+						_clearAndShrink(&idx_dat->idx_desc);
 					}
-					for ([[maybe_unused]] str const& _ : last_group_names.back()) group_names.pop_back();
-					last_group_names.pop_back();
-					_shrink(&group_names, &last_group_names);
-					--group_num;
-					return false;
-				} else if (idx_char == "}")
-					if (group_num == 0) return true;
-					else {
-						end_group = true;
-						return false;
-					}
-				else {
-					value_name << idx_char;
-					return false;
-				}
+					for ([[maybe_unused]] str const& _ : idx_dat->last_group_names.back())
+						idx_dat->group_names.pop_back();
+					idx_dat->last_group_names.pop_back(),
+						_shrink(&idx_dat->group_names, &idx_dat->last_group_names);
+					return --idx_dat->group_num, false;
+				} else if (idx_char == "}") {
+					if (!idx_dat->group_num)
+						if (fvv_stack.size()) {
+							FVV::FVVV target_fvvv = fvv_stack.top().fvvv;
+							fvv_stack.pop();
+							(fvv_stack.empty() ? &root_dat : &fvv_stack.top())
+								->tmp_fvvs.push_back(target_fvvv);
+							return false;
+						} else return true;
+					else return end_group = true, false;
+				} else return idx_dat->value_name << idx_char, false;
 			});
 		}
 
@@ -575,14 +559,31 @@ namespace FVV {
 			} else if constexpr (is_same_v<Tp, vec<str>>) {
 				vec<str> static const dfltStrs = {};
 				return dfltStrs;
+			} else if constexpr (is_same_v<Tp, vec<FVVV>>) {
+				vec<FVVV> static const dfltFvvvs = {};
+				return dfltFvvvs;
 			}
 			Tp static dfltTp{};
 			return dfltTp;
 		}
+		template<typename T>
+		FVV_INLINE static bool writeList(stringstream& result, vec<T> const& list, bool is_biglist,
+										 bool is_min, strv list_indent,
+										 function<void(stringstream&, T const&)> printer) {
+			for (auto const& value : list) {
+				if (is_biglist) result << list_indent;
+				printer(result, value);
+				if (is_biglist) result << '\n';
+				else {
+					result << ',';
+					if (!is_min) result << ' ';
+				}
+			}
+			return list.empty();
+		}
 		FVV_INLINE static FVVV* _getKey(vec<str> const& paths, FVVV* root_key) {
-			FVVV* tmp_key = root_key;
-			for (str const& path : paths) tmp_key = &(*tmp_key)[path];
-			return tmp_key;
+			return accumulate(paths.begin(), paths.end(), root_key,
+							  [](FVVV* acc, str const& path) { return &(*acc)[path]; });
 		}
 		FVV_INLINE static FVVV* _findKey(strv path, FVVV* idx_key, FVVV* root_key) {
 			vec<str> tmp_names = _split(path.data(), '.');
@@ -621,16 +622,10 @@ namespace FVV {
 			while (getline(ss, item, delimiter)) result.push_back(item);
 			return result;
 		}
-		FVV_INLINE static str _replace(str s, strv f, strv t) {
-			_replaceBase(s, f, t);
-			return s;
-		}
+		FVV_INLINE static str  _replace(str s, strv f, strv t) { return _replaceBase(s, f, t), s; }
 		FVV_INLINE static void _replaceBase(str& s, strv f, strv t) {
 			size_t p = 0;
-			while ((p = s.find(f, p)) != str::npos) {
-				s.replace(p, f.length(), t);
-				p += t.length();
-			}
+			while ((p = s.find(f, p)) != str::npos) s.replace(p, f.length(), t), p += t.length();
 		}
 		FVV_INLINE static bool _isInt(strv s) {
 			if (s.empty()) return false;
@@ -665,29 +660,18 @@ namespace FVV {
 		}
 		template<typename Tp, typename... Args>
 		FVV_INLINE static void _shrink(Tp* container, Args... args) {
-			_shrink(container);
-			_shrink(args...);
+			_shrink(container), _shrink(args...);
 		}
 		template<typename Tp>
 		FVV_INLINE static void _clearAndShrink(Tp* container) {
-			if (container) {
-				container->clear();
-				container->shrink_to_fit();
-			}
+			if (container) container->clear(), container->shrink_to_fit();
 		}
 		template<typename Tp, typename... Args>
 		FVV_INLINE static void _clearAndShrink(Tp* container, Args... args) {
-			_clearAndShrink(container);
-			_clearAndShrink(args...);
+			_clearAndShrink(container), _clearAndShrink(args...);
 		}
 		FVV_INLINE static void _removeLastChar(stringstream& ss) {
-			str str = ss.str();
-			if (!str.empty()) {
-				str.pop_back();
-				ss.str("");
-				ss.clear();
-				ss << str;
-			}
+			if (str str = ss.str(); !str.empty()) str.pop_back(), ss.str(""), ss.clear(), ss << str;
 		}
 		FVV_INLINE static void _utf8ForEach(strv target, size_t size,
 											function<bool(size_t const&, strv, uint8_t const&)> handler) {
