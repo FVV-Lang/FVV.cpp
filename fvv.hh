@@ -17,7 +17,6 @@
 #include <functional>
 #include <numeric>
 #include <sstream>
-#include <stack>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -324,6 +323,7 @@ namespace FVV {
 			if (txt.empty()) return;
 			if (txt.back() != '}' && txt.back() != '\n') txt += '\n';
 			_replaceBase(txt, "\r\n", "\n"), _replaceBase(txt, "\r", "\n"), _shrink(&txt);
+
 			struct FVVVDat {
 				stringstream  value_name;
 				str			  idx_desc;
@@ -332,24 +332,52 @@ namespace FVV {
 				vec<FVVV>	  tmp_fvvs;
 				bool		  in_value = false, in_list = false, is_list = false;
 				size_t		  group_num = 0;
-				FVVV		  fvvv;
+				FVVV		  root_key;
+				FVVV*		  idx_key = &root_key;
+			};
+			auto static _getKey = [](vec<str> const& paths, FVVV* idx_key) -> FVVV* {
+				return accumulate(paths.begin(), paths.end(), idx_key,
+								  [](FVVV* acc, str const& path) { return &(*acc)[path]; });
+			};
+			auto static _findKey = [this](strv path, vec<FVVVDat>& stack_dat) -> FVVV* {
+				vec<str> tmp_names = _split(path.data(), '.');
+				FVVV*	 tmp_key   = nullptr;
+				auto	 findKey   = [this, &tmp_names, &tmp_key](FVVVDat& idx_dat, bool root) -> FVVV* {
+					  tmp_key = idx_dat.idx_key;
+					  for (str const& tmp_name : tmp_names)
+						  if (!tmp_key->sub.hasKey(tmp_name)) {
+							  tmp_key = nullptr;
+							  break;
+						  } else tmp_key = &(*tmp_key)[tmp_name];
+					  if (!tmp_key) {
+						  tmp_key = root ? this : &idx_dat.root_key;
+						  for (str const& tmp_name : tmp_names)
+							  if (!tmp_key->sub.hasKey(tmp_name)) {
+								  tmp_key = nullptr;
+								  break;
+							  } else tmp_key = &(*tmp_key)[tmp_name];
+					  }
+					  return tmp_key;
+				};
+				for (size_t idx = stack_dat.size(); idx-- > 0;)
+					if (findKey(stack_dat[idx], idx == 0)) return tmp_key;
+				return tmp_key;
 			};
 			stringstream tmp_desc, value;
 			vec<str>	 values;
 			bool		 old_fvv = false, end_group = false, is_real_char = false, in_desc = false,
 				 in_str = false, is_str = false, is_all_str = false, is_empty_str = false;
-			uint8_t		   last_char_size = 0;
-			FVVVDat		   root_dat;
-			stack<FVVVDat> fvv_stack;
+			uint8_t			last_char_size = 0;
+			vector<FVVVDat> fvv_stack(1);
+			fvv_stack.front().idx_key = this;
 			_utf8ForEach(txt, txt.size(),
 						 [&](auto const& idx, auto idx_char, auto const& char_size) -> bool {
-				FVVV*	 root_key = fvv_stack.empty() ? this : &fvv_stack.top().fvvv;
-				FVVV*	 idx_key  = root_key;
-				FVVVDat* idx_dat  = fvv_stack.empty() ? &root_dat : &fvv_stack.top();
-				is_real_char	  = idx >= 1
-									  ? (last_char_size == 1 ? (txt[idx - 1] != '\\' ? true : false) : true)
-									  : true;
-				last_char_size	  = char_size;
+				FVVVDat* idx_dat = &fvv_stack.back();
+				idx_dat->idx_key = fvv_stack.size() > 1 ? &idx_dat->root_key : this;
+				is_real_char	 = idx >= 1
+									 ? (last_char_size == 1 ? (txt[idx - 1] != '\\' ? true : false) : true)
+									 : true;
+				last_char_size	 = char_size;
 				if (in_desc)
 					if (idx_char != ">" || !is_real_char) {
 						if (idx_char == ">") _removeLastChar(tmp_desc);
@@ -377,7 +405,8 @@ namespace FVV {
 						} else return value << idx_char, false;
 					else if (idx_char == "\"") return in_str = is_str = is_all_str = true, false;
 					else if (idx_char == "[") return idx_dat->in_list = idx_dat->is_list = true, false;
-					else if (idx_dat->in_list && idx_char == "{") return fvv_stack.push(FVVVDat()), false;
+					else if (idx_dat->in_list && idx_char == "{")
+						return fvv_stack.push_back(FVVVDat()), false;
 					else if (idx_dat->in_list && _eqOr(idx_char, strv(","), strv("]"), strv("\n"))) {
 						str const value_str = value.str();
 						if (idx_char == "]") {
@@ -410,32 +439,34 @@ namespace FVV {
 						if ((is_all_str && is_str) || _eqOr(value_str, str("true"), str("false"))
 							|| _isInt(value_str) || _isDouble(value_str))
 							values.push_back(value_str);
-						else if (idx_key = _getKey({value_str}, _getKey(idx_dat->group_names, idx_key));
-								 idx_key->isNotEmpty()) {
-							if (idx_key->isType<str>()) values.push_back(idx_key->as<str>());
-							else if (idx_key->isType<bool>())
-								values.push_back(idx_key->as<bool>() ? "true" : "false");
-							else if (idx_key->isType<int>())
-								values.push_back(to_string(idx_key->as<int>()));
-							else if (idx_key->isType<double>())
-								values.push_back(to_string(idx_key->as<double>()));
-							else if (idx_key->isType<vec<str>>()) {
-								vec<str> const tmp = idx_key->as<vec<str>>();
+						else if (idx_dat->idx_key = _getKey(
+									 {value_str}, _getKey(idx_dat->group_names, idx_dat->idx_key));
+								 idx_dat->idx_key->isNotEmpty()) {
+							if (idx_dat->idx_key->isType<str>())
+								values.push_back(idx_dat->idx_key->as<str>());
+							else if (idx_dat->idx_key->isType<bool>())
+								values.push_back(idx_dat->idx_key->as<bool>() ? "true" : "false");
+							else if (idx_dat->idx_key->isType<int>())
+								values.push_back(to_string(idx_dat->idx_key->as<int>()));
+							else if (idx_dat->idx_key->isType<double>())
+								values.push_back(to_string(idx_dat->idx_key->as<double>()));
+							else if (idx_dat->idx_key->isType<vec<str>>()) {
+								vec<str> const tmp = idx_dat->idx_key->as<vec<str>>();
 								values.insert(values.end(), tmp.begin(), tmp.end());
-							} else if (idx_key->isType<vec<bool>>()) {
-								vec<bool> const tmp = idx_key->as<vec<bool>>();
+							} else if (idx_dat->idx_key->isType<vec<bool>>()) {
+								vec<bool> const tmp = idx_dat->idx_key->as<vec<bool>>();
 								transform(tmp.begin(), tmp.end(), back_inserter(values),
 										  [](bool v) { return v ? "true" : "false"; });
-							} else if (idx_key->isType<vec<int>>()) {
-								vec<int> const tmp = idx_key->as<vec<int>>();
+							} else if (idx_dat->idx_key->isType<vec<int>>()) {
+								vec<int> const tmp = idx_dat->idx_key->as<vec<int>>();
 								transform(tmp.begin(), tmp.end(), back_inserter(values),
 										  [](int v) { return to_string(v); });
-							} else if (idx_key->isType<vec<double>>()) {
-								vec<double> const tmp = idx_key->as<vec<double>>();
+							} else if (idx_dat->idx_key->isType<vec<double>>()) {
+								vec<double> const tmp = idx_dat->idx_key->as<vec<double>>();
 								transform(tmp.begin(), tmp.end(), back_inserter(values),
 										  [](double v) { return to_string(v); });
-							} else if (idx_key->isType<vec<FVVV>>()) {
-								vec<FVVV> const tmp = idx_key->as<vec<FVVV>>();
+							} else if (idx_dat->idx_key->isType<vec<FVVV>>()) {
+								vec<FVVV> const tmp = idx_dat->idx_key->as<vec<FVVV>>();
 								idx_dat->tmp_fvvs.insert(idx_dat->tmp_fvvs.end(), tmp.begin(), tmp.end());
 							}
 						}
@@ -454,11 +485,12 @@ namespace FVV {
 							_clearAndShrink(&idx_dat->value_names);
 						return ++idx_dat->group_num, idx_dat->in_value = false, false;
 					} else if (!idx_dat->in_list && _eqOr(idx_char, strv(";"), strv("\n"))) {
-						idx_key = _getKey(idx_dat->value_names, _getKey(idx_dat->group_names, idx_key));
+						idx_dat->idx_key = _getKey(idx_dat->value_names,
+												   _getKey(idx_dat->group_names, idx_dat->idx_key));
 						if (idx_dat->is_list) {
-							if (values.empty() && idx_dat->tmp_fvvs.empty()) *idx_key = FVVV();
-							else if (!idx_dat->tmp_fvvs.empty()) *idx_key = idx_dat->tmp_fvvs;
-							else if (is_all_str) *idx_key = values;
+							if (values.empty() && idx_dat->tmp_fvvs.empty()) *idx_dat->idx_key = FVVV();
+							else if (!idx_dat->tmp_fvvs.empty()) *idx_dat->idx_key = idx_dat->tmp_fvvs;
+							else if (is_all_str) *idx_dat->idx_key = values;
 							else {
 								str tmp_str = values.front();
 								if (_eqOr(tmp_str, str("true"), str("false"))) {
@@ -466,33 +498,33 @@ namespace FVV {
 									tmp.reserve(values.size());
 									transform(values.begin(), values.end(), back_inserter(tmp),
 											  [](strv s) { return s == "true"; });
-									*idx_key = tmp;
+									*idx_dat->idx_key = tmp;
 								} else if (_isInt(tmp_str)) {
 									vec<int> tmp;
 									for (str const& str : values)
 										if (_isInt(str)) tmp.push_back(stoi(str));
-									*idx_key = tmp;
+									*idx_dat->idx_key = tmp;
 								} else if (_isDouble(tmp_str)) {
 									vec<double> tmp;
 									for (str const& str : values)
 										if (_isDouble(str)) tmp.push_back(stod(str));
-									*idx_key = tmp;
+									*idx_dat->idx_key = tmp;
 								}
 							}
 						} else {
 							str const value_str = value.str();
-							if (is_all_str) *idx_key = value_str;
+							if (is_all_str) *idx_dat->idx_key = value_str;
 							else if (_eqOr(value_str, str("true"), str("false")))
-								*idx_key = value_str == "true";
-							else if (_isInt(value_str)) *idx_key = stoi(value_str);
-							else if (_isDouble(value_str)) *idx_key = stod(value_str);
-							else if (FVVV* tmp_key = _findKey(value_str, idx_key, root_key); tmp_key) {
-								if (tmp_key->sub.empty()) *idx_key = tmp_key->value;
-								else idx_key->sub = tmp_key->sub;
-								idx_key->link = value_str;
+								*idx_dat->idx_key = value_str == "true";
+							else if (_isInt(value_str)) *idx_dat->idx_key = stoi(value_str);
+							else if (_isDouble(value_str)) *idx_dat->idx_key = stod(value_str);
+							else if (FVVV* tmp_key = _findKey(value_str, fvv_stack); tmp_key) {
+								if (tmp_key->sub.empty()) *idx_dat->idx_key = tmp_key->value;
+								else idx_dat->idx_key->sub = tmp_key->sub;
+								idx_dat->idx_key->link = value_str;
 							}
 						}
-						idx_key->desc = idx_dat->idx_desc;
+						idx_dat->idx_key->desc = idx_dat->idx_desc;
 						value.str(""), value.clear();
 						_clearAndShrink(&idx_dat->idx_desc, &values, &idx_dat->value_names,
 										&idx_dat->tmp_fvvs);
@@ -509,7 +541,7 @@ namespace FVV {
 						   && idx_dat->group_num > 0) {
 					end_group = false;
 					if (!idx_dat->idx_desc.empty()) {
-						_getKey(idx_dat->group_names, idx_key)->desc = idx_dat->idx_desc;
+						_getKey(idx_dat->group_names, idx_dat->idx_key)->desc = idx_dat->idx_desc;
 						_clearAndShrink(&idx_dat->idx_desc);
 					}
 					for ([[maybe_unused]] str const& _ : idx_dat->last_group_names.back())
@@ -519,11 +551,10 @@ namespace FVV {
 					return --idx_dat->group_num, false;
 				} else if (idx_char == "}") {
 					if (!idx_dat->group_num)
-						if (fvv_stack.size()) {
-							FVV::FVVV target_fvvv = fvv_stack.top().fvvv;
-							fvv_stack.pop();
-							(fvv_stack.empty() ? &root_dat : &fvv_stack.top())
-								->tmp_fvvs.push_back(target_fvvv);
+						if (fvv_stack.size() > 1) {
+							FVVV target_fvvv = fvv_stack.back().root_key;
+							fvv_stack.pop_back();
+							fvv_stack.back().tmp_fvvs.push_back(target_fvvv);
 							return false;
 						} else return true;
 					else return end_group = true, false;
@@ -580,28 +611,6 @@ namespace FVV {
 				}
 			}
 			return list.empty();
-		}
-		FVV_INLINE static FVVV* _getKey(vec<str> const& paths, FVVV* root_key) {
-			return accumulate(paths.begin(), paths.end(), root_key,
-							  [](FVVV* acc, str const& path) { return &(*acc)[path]; });
-		}
-		FVV_INLINE static FVVV* _findKey(strv path, FVVV* idx_key, FVVV* root_key) {
-			vec<str> tmp_names = _split(path.data(), '.');
-			FVVV*	 tmp_key   = idx_key;
-			for (str const& tmp_name : tmp_names)
-				if (!tmp_key->sub.hasKey(tmp_name)) {
-					tmp_key = nullptr;
-					break;
-				} else tmp_key = &(*tmp_key)[tmp_name];
-			if (!tmp_key) {
-				tmp_key = root_key;
-				for (str const& tmp_name : tmp_names)
-					if (!tmp_key->sub.hasKey(tmp_name)) {
-						tmp_key = nullptr;
-						break;
-					} else tmp_key = &(*tmp_key)[tmp_name];
-			}
-			return tmp_key;
 		}
 		template<typename Tp>
 		FVV_INLINE static bool _eqOr(Tp a, Tp b) {
