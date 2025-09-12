@@ -136,10 +136,10 @@ namespace FVV {
 			return *this;
 		}
 		FVV_INLINE bool operator==(const FVVV& other) const {
-			return addressof(other) == this || value == other.value;
+			return addressof(other) == this || value == other.value || sub == other.sub;
 		}
 		FVV_INLINE bool operator!=(const FVVV& other) const {
-			return addressof(other) != this && value != other.value;
+			return addressof(other) != this && (value != other.value || sub != other.sub);
 		}
 		/// @brief  以bool类型返回值
 		/// @param  默认值(可选)
