@@ -192,6 +192,13 @@ namespace FVV {
 			vec<str> const& defaultValue = _getDfltVal<vec<str>>()) const {
 			return as<vec<str>>(defaultValue);
 		}
+		/// @brief  以vector<FVVV>类型返回值
+		/// @param  默认值(可选)
+		/// @return 值
+		FVV_INLINE const vec<FVVV>& asFVVVs(
+			vec<FVVV> const& defaultValue = _getDfltVal<vec<FVVV>>()) const {
+			return as<vec<FVVV>>(defaultValue);
+		}
 		/// @brief              以指定类型返回值
 		/// @param Tp           类型
 		/// @param defaultValue 默认值(可选)
