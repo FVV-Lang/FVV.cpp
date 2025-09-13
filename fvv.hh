@@ -136,7 +136,7 @@ namespace FVV {
 			return *this;
 		}
 		FVV_INLINE bool operator==(const FVVV& other) const {
-			return addressof(other) == this || value == other.value || sub == other.sub;
+			return addressof(other) == this || (value == other.value && sub == other.sub);
 		}
 		FVV_INLINE bool operator!=(const FVVV& other) const {
 			return addressof(other) != this && (value != other.value || sub != other.sub);
@@ -349,26 +349,24 @@ namespace FVV {
 			auto static _findKey = [this](strv path, vec<FVVVDat>& stack_dat) -> FVVV* {
 				vec<str> tmp_names = _split(path.data(), '.');
 				FVVV*	 tmp_key   = nullptr;
-				auto	 findKey   = [this, &tmp_names, &tmp_key](FVVVDat& idx_dat, bool root) -> FVVV* {
-					  tmp_key = idx_dat.idx_key;
-					  for (str const& tmp_name : tmp_names)
-						  if (!tmp_key->sub.hasKey(tmp_name)) {
-							  tmp_key = nullptr;
-							  break;
-						  } else tmp_key = &(*tmp_key)[tmp_name];
-					  if (!tmp_key) {
-						  tmp_key = root ? this : &idx_dat.root_key;
-						  for (str const& tmp_name : tmp_names)
-							  if (!tmp_key->sub.hasKey(tmp_name)) {
-								  tmp_key = nullptr;
-								  break;
-							  } else tmp_key = &(*tmp_key)[tmp_name];
-					  }
-					  return tmp_key;
-				};
-				for (size_t idx = stack_dat.size(); idx-- > 0;)
-					if (findKey(stack_dat[idx], idx == 0)) return tmp_key;
-				return tmp_key;
+				for (size_t idx = stack_dat.size(); idx-- > 0;) {
+					FVVVDat& idx_dat = stack_dat[idx];
+					tmp_key			 = idx_dat.idx_key;
+					for (str const& tmp_name : tmp_names)
+						if (tmp_key->sub.hasKey(tmp_name)) tmp_key = &(*tmp_key)[tmp_name];
+						else {
+							tmp_key = idx == 0 ? this : &idx_dat.root_key;
+							for (str const& tmp_name : tmp_names)
+								if (tmp_key->sub.hasKey(tmp_name)) tmp_key = &(*tmp_key)[tmp_name];
+								else {
+									tmp_key = nullptr;
+									break;
+								}
+							break;
+						}
+					if (tmp_key) return tmp_key;
+				}
+				return nullptr;
 			};
 			stringstream tmp_desc, value;
 			vec<str>	 values;
