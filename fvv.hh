@@ -391,6 +391,8 @@ namespace FVV {
 					} else {
 						idx_dat->idx_desc = tmp_desc.str();
 						tmp_desc.str(""), tmp_desc.clear(), _shrink(&idx_dat->idx_desc);
+						if (FVVV* key = _findKey(idx_dat->idx_desc, fvv_stack); key && key->isType<str>())
+							idx_dat->idx_desc = key->asString();
 						return in_desc = false, false;
 					}
 				else {
