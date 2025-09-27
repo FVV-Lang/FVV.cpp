@@ -111,6 +111,7 @@ namespace FVV {
 					  func ? func : [](auto const& a, auto const& b) { return a.key() < b.key(); });
 		}
 	};
+	enum FormatOpt { Common, Min, BigList, NoDesc };
 	class FVVV {
 	public:
 		using FVVVT = variant<monostate, bool, int, double, str, vec<bool>, vec<int>, vec<double>,
@@ -127,16 +128,10 @@ namespace FVV {
 		FVV_INLINE		 FVVV(void) = default;
 		FVV_INLINE		 FVVV(const FVVVT& v): value(v) {}
 		FVV_INLINE FVVV& operator[](strv key) { return sub[key.data()]; }
-		FVV_INLINE FVVV& operator=(const FVVVT& val) {
-			value = val;
-			return *this;
-		}
-		FVV_INLINE FVVV& operator=(FVVVT&& val) {
-			value = val;
-			return *this;
-		}
-		FVV_INLINE bool operator==(const FVVV& other) const {
-			return addressof(other) == this || (value == other.value && sub == other.sub);
+		FVV_INLINE FVVV& operator=(const FVVVT& val) { return value = val, *this; }
+		FVV_INLINE FVVV& operator=(FVVVT&& val) { return value = val, *this; }
+		FVV_INLINE bool	 operator==(const FVVV& other) const {
+			 return addressof(other) == this || (value == other.value && sub == other.sub);
 		}
 		FVV_INLINE bool operator!=(const FVVV& other) const {
 			return addressof(other) != this && (value != other.value || sub != other.sub);
@@ -221,13 +216,11 @@ namespace FVV {
 		FVV_INLINE bool isType(void) const {
 			return isNotEmpty() && holds_alternative<Tp>(value);
 		}
-		/// @brief  输出FVV文本格式格式化后的值
-		/// @param  为“common”或空时正常输出
-		/// @param  为“min”时最小化输出
-		/// @param  为“biglist”时会把值组内每个值换行输出
-		/// @return FVV文本格式格式化后的值
-		FVV_INLINE str print(strv type = "common", size_t indent_lv = 0) const {
-			bool is_min = type == "min", is_biglist = type == "biglist", is_nodesc = type == "nodesc";
+		/// @brief           输出FVV文本格式格式化后的值
+		/// @param opt       格式化选项
+		/// @param indent_lv 缩进等级
+		/// @return          FVV文本格式格式化后的值
+		FVV_INLINE str print(FormatOpt opt = FormatOpt::Common, size_t indent_lv = 0) const {
 			stringstream result;
 
 			function<void(strv, FVVV const*, size_t)> const print_func = [&](auto path, auto const* node,
@@ -235,11 +228,11 @@ namespace FVV {
 				if (path.empty() || (node->isEmpty() && node->sub.empty())) return;
 				str indent(indent_lv * 2, ' ');
 				if (!node->sub.empty() && node->link.empty()) {
-					if (is_min) result << path << "={";
+					if (opt == FormatOpt::Min) result << path << "={";
 					else result << indent << path << " = {\n";
 				}
 				if (!node->link.empty() || node->isNotEmpty()) {
-					if (is_min) result << path << '=';
+					if (opt == FormatOpt::Min) result << path << '=';
 					else result << indent << path << " = ";
 					if (!node->link.empty()) result << node->link;
 					else if (node->template isType<str>())
@@ -252,67 +245,75 @@ namespace FVV {
 					else if (node->template isType<vec<str>>() || node->template isType<vec<bool>>()
 							 || node->template isType<vec<int>>() || node->template isType<vec<double>>()
 							 || node->template isType<vec<FVVV>>()) {
-						result << '[';
+						if (!node->desc.empty() && node->template isType<vec<FVVV>>()) {
+							result << '<' << _replace(node->desc, ">", "\\>") << '>';
+							if (opt != FormatOpt::Min) result << ' ';
+						}
 						str list_indent((indent_lv + 1) * 2, ' ');
-						if (is_biglist || (!is_min && node->template isType<vec<FVVV>>())) result << '\n';
+						result << '[';
+						if (opt == FormatOpt::BigList
+							|| (opt != FormatOpt::Min && node->template isType<vec<FVVV>>()))
+							result << '\n';
 
 						bool is_empty_list = true;
 						if (node->template isType<vec<str>>())
 							is_empty_list = writeList(
-								result, node->template as<vec<str>>(), is_biglist, is_min, list_indent,
+								result, node->template as<vec<str>>(), opt, list_indent,
 								function<void(stringstream&, str const&)>([](auto& ss, auto const& v) {
 								ss << '"' << _replace(v, "\"", "\\\"") << '"';
 							}));
 						else if (node->template isType<vec<bool>>())
 							is_empty_list = writeList(
-								result, node->template as<vec<bool>>(), is_biglist, is_min, list_indent,
+								result, node->template as<vec<bool>>(), opt, list_indent,
 								function<void(stringstream&, bool const&)>(
 									[](auto& ss, auto const& v) { ss << str(v ? "true" : "false"); }));
 						else if (node->template isType<vec<int>>())
-							is_empty_list = writeList(
-								result, node->template as<vec<int>>(), is_biglist, is_min, list_indent,
-								function<void(stringstream&, int const&)>(
-									[](auto& ss, auto const& v) { ss << to_string(v); }));
+							is_empty_list =
+								writeList(result, node->template as<vec<int>>(), opt, list_indent,
+										  function<void(stringstream&, int const&)>(
+											  [](auto& ss, auto const& v) { ss << to_string(v); }));
 						else if (node->template isType<vec<double>>())
-							is_empty_list = writeList(
-								result, node->template as<vec<double>>(), is_biglist, is_min, list_indent,
-								function<void(stringstream&, double const&)>(
-									[](auto& ss, auto const& v) { ss << to_string(v); }));
+							is_empty_list =
+								writeList(result, node->template as<vec<double>>(), opt, list_indent,
+										  function<void(stringstream&, double const&)>(
+											  [](auto& ss, auto const& v) { ss << to_string(v); }));
 						else if (node->template isType<vec<FVVV>>()) {
 							auto const tmp = node->template as<vec<FVVV>>();
 							is_empty_list  = tmp.empty();
 							for (auto const& value : tmp) {
-								if (!is_min) result << list_indent;
-								result << '{';
-								if (!is_min) result << '\n';
-								result << value.print(type, indent_lv + 2);
-								if (is_min) result << ";}";
-								else result << '\n' << list_indent << '}';
+								if (opt != FormatOpt::Min) result << list_indent;
 								if (!value.desc.empty()) {
-									if (!is_min) result << ' ';
 									result << '<' << _replace(value.desc, ">", "\\>") << '>';
+									if (opt != FormatOpt::Min) result << ' ';
 								}
-								if (is_min) result << ',';
+								result << '{';
+								if (opt != FormatOpt::Min) result << '\n';
+								result << value.print(opt, indent_lv + 2);
+								if (opt == FormatOpt::Min) result << ";}";
+								else result << '\n' << list_indent << '}';
+								if (opt == FormatOpt::Min) result << ',';
 								else result << '\n';
 							}
 						}
-						if (is_biglist || (!is_min && node->template isType<vec<FVVV>>()))
+						if (opt == FormatOpt::BigList
+							|| (opt != FormatOpt::Min && node->template isType<vec<FVVV>>()))
 							result << indent;
 						else if (!is_empty_list) {
 							_removeLastChar(result);
-							if (!is_min) _removeLastChar(result);
+							if (opt != FormatOpt::Min) _removeLastChar(result);
 						}
 						result << ']';
 					}
 				} else
 					for (auto const& [key, sub] : node->sub) print_func(key, &sub, indent_lv + 1);
 				if (!node->sub.empty() && node->link.empty()) {
-					if (!is_min) result << indent;
+					if (opt != FormatOpt::Min) result << indent;
 					result << '}';
 				}
-				if (!node->desc.empty() && !is_min && !is_nodesc)
+				if (!node->desc.empty() && !node->template isType<vec<FVVV>>() && opt != FormatOpt::Min
+					&& opt != FormatOpt::NoDesc)
 					result << " <" << _replace(node->desc, ">", "\\>") << '>';
-				if (is_min) result << ';';
+				if (opt == FormatOpt::Min) result << ';';
 				else result << '\n';
 			};
 			for (auto const& [k, v] : sub) print_func(k, &v, indent_lv);
@@ -320,7 +321,7 @@ namespace FVV {
 		}
 		/// @brief     解析字符串到此FVVV
 		/// @param txt FVV文本格式的字符串
-		FVV_INLINE void addFromString(str txt) {
+		FVV_INLINE void parse(str txt) {
 			if (txt.size() >= 3 && static_cast<unsigned char>(txt[0]) == _bom[0]
 				&& static_cast<unsigned char>(txt[1]) == _bom[1]
 				&& static_cast<unsigned char>(txt[2]) == _bom[2])
@@ -605,16 +606,16 @@ namespace FVV {
 			return dfltTp;
 		}
 		template<typename T>
-		FVV_INLINE static bool writeList(stringstream& result, vec<T> const& list, bool is_biglist,
-										 bool is_min, strv list_indent,
+		FVV_INLINE static bool writeList(stringstream& result, vec<T> const& list, FormatOpt opt,
+										 strv									 list_indent,
 										 function<void(stringstream&, T const&)> printer) {
 			for (auto const& value : list) {
-				if (is_biglist) result << list_indent;
+				if (opt == FormatOpt::BigList) result << list_indent;
 				printer(result, value);
-				if (is_biglist) result << '\n';
+				if (opt == FormatOpt::BigList) result << '\n';
 				else {
 					result << ',';
-					if (!is_min) result << ' ';
+					if (opt != FormatOpt::Min) result << ' ';
 				}
 			}
 			return list.empty();
