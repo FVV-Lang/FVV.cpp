@@ -13,7 +13,6 @@
 #pragma once
 
 #include <algorithm>
-#include <cstdint>
 #include <functional>
 #include <numeric>
 #include <sstream>
@@ -22,6 +21,8 @@
 #include <utility>
 #include <variant>
 #include <vector>
+
+#include <cstdint>
 
 #ifdef __GNUC__
 #define FVV_INLINE __attribute__((always_inline)) inline
@@ -54,14 +55,15 @@ namespace FVV {
 		using const_iterator = typename vec<KVPair<_keyTp, _valTp>>::const_iterator;
 		FVV_INLINE vec<KVPair<_keyTp, _valTp>>&& data_rv(void) { return std::move(*this); }
 		FVV_INLINE _valTp&						 operator[](_keyTp const& key) {
-			  if (auto it =
-					  find_if(this->begin(), this->end(), [&key](auto const& p) { return p.key() == key; });
+			  if (auto it
+				  = find_if(this->begin(), this->end(), [&key](auto const& p) { return p.key() == key; });
 				  it != this->end())
 				  return it->value();
 			  return this->emplace_back(key, _valTp()), this->back().value();
 		}
 		FVV_INLINE _keyTp& operator()(_valTp const& value) {
-			if (auto it = find_if(this->begin(), this->end(),
+			if (auto it = find_if(this->begin(),
+								  this->end(),
 								  [&value](auto const& p) { return p.value() == value; });
 				it != this->end())
 				return it->key();
@@ -71,51 +73,65 @@ namespace FVV {
 			return any_of(this->begin(), this->end(), [&key](auto const& p) { return p.key() == key; });
 		}
 		FVV_INLINE bool hasValue(_valTp const& value) const {
-			return any_of(this->begin(), this->end(),
-						  [&value](auto const& p) { return p.value() == value; });
+			return any_of(
+					this->begin(), this->end(), [&value](auto const& p) { return p.value() == value; });
 		}
 		FVV_INLINE const_iterator findKey(_keyTp const& key) const {
 			return find_if(this->begin(), this->end(), [&key](auto const& p) { return p.key() == key; });
 		}
 		FVV_INLINE const_iterator findValue(_valTp const& value) const {
-			return find_if(this->begin(), this->end(),
-						   [&value](auto const& p) { return p.value() == value; });
+			return find_if(
+					this->begin(), this->end(), [&value](auto const& p) { return p.value() == value; });
 		}
 		FVV_INLINE void eraseKey(_keyTp const& key) {
 			this->erase(
-				remove_if(this->begin(), this->end(), [&key](auto const& p) { return p.key() == key; }),
-				this->end());
+					remove_if(
+							this->begin(), this->end(), [&key](auto const& p) { return p.key() == key; }),
+					this->end());
 		}
 		FVV_INLINE void eraseValue(_valTp const& value) {
-			this->erase(remove_if(this->begin(), this->end(),
+			this->erase(remove_if(this->begin(),
+								  this->end(),
 								  [&value](auto const& p) { return p.value() == value; }),
 						this->end());
 		}
 		FVV_INLINE vec<_keyTp> keys(void) const {
 			vec<_keyTp> keys;
 			keys.reserve(this->size());
-			transform(this->begin(), this->end(), back_inserter(keys),
-					  [](auto const& p) { return p.key(); });
+			transform(this->begin(), this->end(), back_inserter(keys), [](auto const& p) {
+				return p.key();
+			});
 			return keys;
 		}
 		FVV_INLINE vec<_valTp> values(void) const {
 			vec<_valTp> vals;
 			vals.reserve(this->size());
-			transform(this->begin(), this->end(), back_inserter(vals),
-					  [](auto const& p) { return p.second; });
+			transform(this->begin(), this->end(), back_inserter(vals), [](auto const& p) {
+				return p.second;
+			});
 			return vals;
 		}
 		FVV_INLINE void sort(
-			function<bool(KVPair<_keyTp, _valTp> const&, KVPair<_keyTp, _valTp> const&)> func = nullptr) {
-			std::sort(this->begin(), this->end(),
-					  func ? func : [](auto const& a, auto const& b) { return a.key() < b.key(); });
+				function<bool(KVPair<_keyTp, _valTp> const&, KVPair<_keyTp, _valTp> const&)> func
+				= nullptr) {
+			std::sort(this->begin(), this->end(), func ? func : [](auto const& a, auto const& b) {
+				return a.key() < b.key();
+			});
 		}
 	};
 	enum FormatOpt { Common, Min, BigList, NoDesc };
 	class FVVV {
-	public:
-		using FVVVT = variant<monostate, bool, int, double, str, vec<bool>, vec<int>, vec<double>,
-							  vec<str>, vec<FVVV>>;
+	   public:
+		using FVVVT = variant<monostate,
+							  bool,
+							  int,
+							  double,
+							  str,
+							  vec<bool>,
+							  vec<int>,
+							  vec<double>,
+							  vec<str>,
+							  vec<FVVV>>;
 		/// @brief 值
 		FVVVT value;
 		/// @brief 子值
@@ -163,8 +179,8 @@ namespace FVV {
 		/// @brief  以vector<bool>类型返回值
 		/// @param  默认值(可选)
 		/// @return 值
-		FVV_INLINE const vec<bool>& asBools(
-			vec<bool> const& defaultValue = _getDfltVal<vec<bool>>()) const {
+		FVV_INLINE const vec<bool>& asBools(vec<bool> const& defaultValue
+											= _getDfltVal<vec<bool>>()) const {
 			return as<vec<bool>>(defaultValue);
 		}
 		/// @brief  以vector<int>类型返回值
@@ -176,22 +192,22 @@ namespace FVV {
 		/// @brief  以vector<double>类型返回值
 		/// @param  默认值(可选)
 		/// @return 值
-		FVV_INLINE const vec<double>& asDoubles(
-			vec<double> const& defaultValue = _getDfltVal<vec<double>>()) const {
+		FVV_INLINE const vec<double>& asDoubles(vec<double> const& defaultValue
+												= _getDfltVal<vec<double>>()) const {
 			return as<vec<double>>(defaultValue);
 		}
 		/// @brief  以vector<string>类型返回值
 		/// @param  默认值(可选)
 		/// @return 值
-		FVV_INLINE const vec<str>& asStrings(
-			vec<str> const& defaultValue = _getDfltVal<vec<str>>()) const {
+		FVV_INLINE const vec<str>& asStrings(vec<str> const& defaultValue
+											 = _getDfltVal<vec<str>>()) const {
 			return as<vec<str>>(defaultValue);
 		}
 		/// @brief  以vector<FVVV>类型返回值
 		/// @param  默认值(可选)
 		/// @return 值
-		FVV_INLINE const vec<FVVV>& asFVVVs(
-			vec<FVVV> const& defaultValue = _getDfltVal<vec<FVVV>>()) const {
+		FVV_INLINE const vec<FVVV>& asFVVVs(vec<FVVV> const& defaultValue
+											= _getDfltVal<vec<FVVV>>()) const {
 			return as<vec<FVVV>>(defaultValue);
 		}
 		/// @brief              以指定类型返回值
@@ -223,8 +239,8 @@ namespace FVV {
 		FVV_INLINE str print(FormatOpt opt = FormatOpt::Common, size_t indent_lv = 0) const {
 			stringstream result;
 
-			function<void(strv, FVVV const*, size_t)> const print_func = [&](auto path, auto const* node,
-																			 auto indent_lv) {
+			function<void(strv, FVVV const*, size_t)> const print_func
+					= [&](auto path, auto const* node, auto indent_lv) {
 				if (path.empty() || (node->isEmpty() && node->sub.empty())) return;
 				str indent(indent_lv * 2, ' ');
 				if (!node->sub.empty() && node->link.empty()) {
@@ -257,26 +273,39 @@ namespace FVV {
 
 						bool is_empty_list = true;
 						if (node->template isType<vec<str>>())
-							is_empty_list = writeList(
-								result, node->template as<vec<str>>(), opt, list_indent,
-								function<void(stringstream&, str const&)>([](auto& ss, auto const& v) {
+							is_empty_list = writeList(result,
+													  node->template as<vec<str>>(),
+													  opt,
+													  list_indent,
+													  function<void(stringstream&, str const&)>(
+															  [](auto& ss, auto const& v) {
 								ss << '"' << _replace(v, "\"", "\\\"") << '"';
 							}));
 						else if (node->template isType<vec<bool>>())
-							is_empty_list = writeList(
-								result, node->template as<vec<bool>>(), opt, list_indent,
-								function<void(stringstream&, bool const&)>(
-									[](auto& ss, auto const& v) { ss << str(v ? "true" : "false"); }));
+							is_empty_list = writeList(result,
+													  node->template as<vec<bool>>(),
+													  opt,
+													  list_indent,
+													  function<void(stringstream&, bool const&)>(
+															  [](auto& ss, auto const& v) {
+								ss << str(v ? "true" : "false");
+							}));
 						else if (node->template isType<vec<int>>())
-							is_empty_list =
-								writeList(result, node->template as<vec<int>>(), opt, list_indent,
-										  function<void(stringstream&, int const&)>(
-											  [](auto& ss, auto const& v) { ss << to_string(v); }));
+							is_empty_list = writeList(
+									result,
+									node->template as<vec<int>>(),
+									opt,
+									list_indent,
+									function<void(stringstream&, int const&)>(
+											[](auto& ss, auto const& v) { ss << to_string(v); }));
 						else if (node->template isType<vec<double>>())
-							is_empty_list =
-								writeList(result, node->template as<vec<double>>(), opt, list_indent,
-										  function<void(stringstream&, double const&)>(
-											  [](auto& ss, auto const& v) { ss << to_string(v); }));
+							is_empty_list = writeList(
+									result,
+									node->template as<vec<double>>(),
+									opt,
+									list_indent,
+									function<void(stringstream&, double const&)>(
+											[](auto& ss, auto const& v) { ss << to_string(v); }));
 						else if (node->template isType<vec<FVVV>>()) {
 							auto const tmp = node->template as<vec<FVVV>>();
 							is_empty_list  = tmp.empty();
@@ -344,8 +373,9 @@ namespace FVV {
 				FVVV*		  idx_key = &root_key;
 			};
 			auto static _getKey = [](vec<str> const& paths, FVVV* idx_key) -> FVVV* {
-				return accumulate(paths.begin(), paths.end(), idx_key,
-								  [](FVVV* acc, str const& path) { return &(*acc)[path]; });
+				return accumulate(paths.begin(), paths.end(), idx_key, [](FVVV* acc, str const& path) {
+					return &(*acc)[path];
+				});
 			};
 			auto static _findKey = [this](strv path, vec<FVVVDat>& stack_dat) -> FVVV* {
 				vec<str> tmp_names = _split(path.data(), '.');
@@ -376,14 +406,14 @@ namespace FVV {
 			uint8_t			last_char_size = 0;
 			vector<FVVVDat> fvv_stack(1);
 			fvv_stack.front().idx_key = this;
-			_utf8ForEach(txt, txt.size(),
-						 [&](auto const& idx, auto idx_char, auto const& char_size) -> bool {
+			_utf8ForEach(
+					txt, txt.size(), [&](auto const& idx, auto idx_char, auto const& char_size) -> bool {
 				FVVVDat* idx_dat = &fvv_stack.back();
 				idx_dat->idx_key = fvv_stack.size() > 1 ? &idx_dat->root_key : this;
-				is_real_char	 = idx >= 1
-									 ? (last_char_size == 1 ? (txt[idx - 1] != '\\' ? true : false) : true)
-									 : true;
-				last_char_size	 = char_size;
+				is_real_char
+						= idx >= 1 ? (last_char_size == 1 ? (txt[idx - 1] != '\\' ? true : false) : true)
+								   : true;
+				last_char_size = char_size;
 				if (in_desc)
 					if (idx_char != ">" || !is_real_char) {
 						if (idx_char == ">") _removeLastChar(tmp_desc);
@@ -448,7 +478,7 @@ namespace FVV {
 							|| _isInt(value_str) || _isDouble(value_str))
 							values.push_back(value_str);
 						else if (idx_dat->idx_key = _getKey(
-									 {value_str}, _getKey(idx_dat->group_names, idx_dat->idx_key));
+										 { value_str }, _getKey(idx_dat->group_names, idx_dat->idx_key));
 								 idx_dat->idx_key->isNotEmpty()) {
 							if (idx_dat->idx_key->isType<str>())
 								values.push_back(idx_dat->idx_key->as<str>());
@@ -463,16 +493,19 @@ namespace FVV {
 								values.insert(values.end(), tmp.begin(), tmp.end());
 							} else if (idx_dat->idx_key->isType<vec<bool>>()) {
 								vec<bool> const tmp = idx_dat->idx_key->as<vec<bool>>();
-								transform(tmp.begin(), tmp.end(), back_inserter(values),
-										  [](bool v) { return v ? "true" : "false"; });
+								transform(tmp.begin(), tmp.end(), back_inserter(values), [](bool v) {
+									return v ? "true" : "false";
+								});
 							} else if (idx_dat->idx_key->isType<vec<int>>()) {
 								vec<int> const tmp = idx_dat->idx_key->as<vec<int>>();
-								transform(tmp.begin(), tmp.end(), back_inserter(values),
-										  [](int v) { return to_string(v); });
+								transform(tmp.begin(), tmp.end(), back_inserter(values), [](int v) {
+									return to_string(v);
+								});
 							} else if (idx_dat->idx_key->isType<vec<double>>()) {
 								vec<double> const tmp = idx_dat->idx_key->as<vec<double>>();
-								transform(tmp.begin(), tmp.end(), back_inserter(values),
-										  [](double v) { return to_string(v); });
+								transform(tmp.begin(), tmp.end(), back_inserter(values), [](double v) {
+									return to_string(v);
+								});
 							} else if (idx_dat->idx_key->isType<vec<FVVV>>()) {
 								vec<FVVV> const tmp = idx_dat->idx_key->as<vec<FVVV>>();
 								idx_dat->tmp_fvvs.insert(idx_dat->tmp_fvvs.end(), tmp.begin(), tmp.end());
@@ -490,7 +523,7 @@ namespace FVV {
 													idx_dat->value_names.begin(),
 													idx_dat->value_names.end());
 						idx_dat->last_group_names.push_back(idx_dat->value_names),
-							_clearAndShrink(&idx_dat->value_names);
+								_clearAndShrink(&idx_dat->value_names);
 						return ++idx_dat->group_num, idx_dat->in_value = false, false;
 					} else if (!idx_dat->in_list && _eqOr(idx_char, strv(";"), strv("\n"))) {
 						idx_dat->idx_key = _getKey(idx_dat->value_names,
@@ -504,8 +537,10 @@ namespace FVV {
 								if (_eqOr(tmp_str, str("true"), str("false"))) {
 									vec<bool> tmp;
 									tmp.reserve(values.size());
-									transform(values.begin(), values.end(), back_inserter(tmp),
-											  [](strv s) { return s == "true"; });
+									transform(
+											values.begin(), values.end(), back_inserter(tmp), [](strv s) {
+										return s == "true";
+									});
 									*idx_dat->idx_key = tmp;
 								} else if (_isInt(tmp_str)) {
 									vec<int> tmp;
@@ -534,8 +569,8 @@ namespace FVV {
 						}
 						idx_dat->idx_key->desc = idx_dat->idx_desc;
 						value.str(""), value.clear();
-						_clearAndShrink(&idx_dat->idx_desc, &values, &idx_dat->value_names,
-										&idx_dat->tmp_fvvs);
+						_clearAndShrink(
+								&idx_dat->idx_desc, &values, &idx_dat->value_names, &idx_dat->tmp_fvvs);
 						idx_dat->is_list = is_str = is_all_str = idx_dat->in_value = false;
 						return false;
 					} else return value << idx_char, false;
@@ -552,10 +587,11 @@ namespace FVV {
 						_getKey(idx_dat->group_names, idx_dat->idx_key)->desc = idx_dat->idx_desc;
 						_clearAndShrink(&idx_dat->idx_desc);
 					}
-					for ([[maybe_unused]] str const& _ : idx_dat->last_group_names.back())
+					for ([[maybe_unused]]
+						 str const& _ : idx_dat->last_group_names.back())
 						idx_dat->group_names.pop_back();
 					idx_dat->last_group_names.pop_back(),
-						_shrink(&idx_dat->group_names, &idx_dat->last_group_names);
+							_shrink(&idx_dat->group_names, &idx_dat->last_group_names);
 					return --idx_dat->group_num, false;
 				} else if (idx_char == "}") {
 					if (!idx_dat->group_num)
@@ -570,8 +606,8 @@ namespace FVV {
 			});
 		}
 
-	private:
-		unsigned char static constexpr const _bom[] = {0xEF, 0xBB, 0xBF};
+	   private:
+		unsigned char static constexpr const _bom[] = { 0xEF, 0xBB, 0xBF };
 		template<typename Tp>
 		FVV_INLINE static const Tp& _getDfltVal() {
 			if constexpr (is_same_v<Tp, bool>) {
@@ -602,11 +638,13 @@ namespace FVV {
 				vec<FVVV> static const dfltFvvvs = {};
 				return dfltFvvvs;
 			}
-			Tp static dfltTp{};
+			Tp static dfltTp {};
 			return dfltTp;
 		}
 		template<typename T>
-		FVV_INLINE static bool writeList(stringstream& result, vec<T> const& list, FormatOpt opt,
+		FVV_INLINE static bool writeList(stringstream&							 result,
+										 vec<T> const&							 list,
+										 FormatOpt								 opt,
 										 strv									 list_indent,
 										 function<void(stringstream&, T const&)> printer) {
 			for (auto const& value : list) {
@@ -690,7 +728,8 @@ namespace FVV {
 		FVV_INLINE static void _removeLastChar(stringstream& ss) {
 			if (str str = ss.str(); !str.empty()) str.pop_back(), ss.str(""), ss.clear(), ss << str;
 		}
-		FVV_INLINE static void _utf8ForEach(strv target, size_t size,
+		FVV_INLINE static void _utf8ForEach(strv												target,
+											size_t												size,
 											function<bool(size_t const&, strv, uint8_t const&)> handler) {
 			size_t i = 0;
 			while (i < size) {
