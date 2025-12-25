@@ -567,7 +567,7 @@ class FVVV {
 			char ch = input[index++];
 			if (ch == '\r') lines_start.push(index);
 			else if (ch == '\n') {
-				if (index >= 2 && input[index - 2] == '\r') lines_start.top() = index;
+				if (index >= 2 && input[index - 2] == '\r') lines_start.top() = index; // \r\n 时后移
 				else lines_start.push(index);
 			}
 			return ch;
@@ -705,7 +705,7 @@ class FVVV {
 			if ((minify = flags & FormatOpt::Minify)) {
 				newline.clear(), indent_unit.clear();
 
-				assign_op = _trim(assign_op);
+				assign_op = _trim(assign_op); // 清理左右空格
 			}
 		}
 	};
@@ -745,10 +745,11 @@ class FVVV {
 		for (;;) {
 			string idx_desc;
 			if (!(err = _parse_desc(ctx, idx_desc, scope_stack, false)).empty())
-				return scope_stack.pop_back(), err;
-			if (!ctx.is_same_line()) idx_desc.clear();
+				return scope_stack.pop_back(), err;	   // 不跳过最后一个注释后的空白
+			if (!ctx.is_same_line()) idx_desc.clear(); // 清理与值不在同一行的注释
 
-			if (ctx.is_eof() || ctx.prematch('}', "｝")) break;
+			if (ctx.is_eof() || ctx.prematch('}', "｝"))
+				break; // 块结尾可能是最外层包装或组，预匹配以交由外部处理
 
 			string name = _parse_name(ctx);
 			if (name.empty()) return scope_stack.pop_back(), ctx.err.NotFound("name");
@@ -777,15 +778,17 @@ class FVVV {
 						if (!ctx.match_any('}', "｝"))
 							return scope_stack.pop_back(), ctx.err.NotFound('}');
 						if (!(err = _parse_desc(ctx, value_desc, scope_stack, false, true)).empty())
-							return scope_stack.pop_back(), err;
+							return scope_stack.pop_back(), err; // 只解析同行注释以避免串行
 						tmp_value.desc = value_desc;
 						tgt_list.emplace_back(std::move(tmp_value));
 						if (ctx.is_same_line() && !ctx.match_any(',', "，") && !ctx.prematch(']', "］"))
 							return scope_stack.pop_back(), ctx.err.NotFound("EOL");
+						// 预匹配列表结尾以交由循环末尾处理
 					} else {
 						FVVV tgt_fwv;
 						if (!(err = _parse_value(ctx, scope_stack, tgt_fwv, idx_desc, true)).empty())
-							return scope_stack.pop_back(), err;
+							return scope_stack.pop_back(), err; // 解析值时会预匹配列表结尾
+
 						if (tgt_fwv._value.type == types::list) {
 							vector<ValueData> tmp_list = tgt_fwv._value._get_list();
 							tgt_list.reserve(tgt_list.size() + tmp_list.size());
@@ -794,11 +797,12 @@ class FVVV {
 						} else if (tgt_fwv._value.type != types::none)
 							tgt_list.emplace_back(std::move(tgt_fwv._value));
 						else tgt_list.emplace_back(std::move(tgt_fwv));
+
 						if (list_type == types::none) list_type = tgt_list.back().type;
 						else if (list_type != tgt_list.back().type) {
 							if (list_type == types::fwv || tgt_list.back().type == types::fwv)
-								return scope_stack.pop_back(), ctx.err.ValuePlusFVVV();
-							switch (tgt_list.back().type) {
+								return scope_stack.pop_back(), ctx.err.ValuePlusFVVV(); // 不允许混合类型
+							switch (tgt_list.back().type) { // 字符串 > 浮点数 > 整数 > 布尔值
 								case types::text: list_type = types::text; break;
 								case types::float_point:
 									if (list_type != types::text) list_type = types::float_point;
@@ -811,13 +815,14 @@ class FVVV {
 							}
 						}
 					}
-					if (ctx.match_any(']', "］")) break;
+					if (ctx.match_any(']', "］")) break; // 统一匹配
 				}
-				if (list_type == types::none) return scope_stack.pop_back(), ctx.err.NotFound("value");
+				if (list_type == types::none)
+					return scope_stack.pop_back(), ctx.err.NotFound("value"); // 不允许空列表
 				if (list_type != types::fwv) {
 					for_each(tgt_list.begin(), tgt_list.end(), [list_type](ValueData& item) {
 						if (item.type == list_type) return;
-						switch (list_type) {
+						switch (list_type) { // 直接提升至列表中的最高类型
 							case types::text: item = item._to_string(); break;
 							case types::float_point:
 								if (item.type == types::integer)
@@ -845,7 +850,7 @@ class FVVV {
 			}
 
 			if (!(err = _parse_desc(ctx, idx_desc, scope_stack, false, true)).empty())
-				return scope_stack.pop_back(), err;
+				return scope_stack.pop_back(), err; // 只解析同行注释以避免串行
 			if (ctx.is_same_line() && !ctx.is_eof() && !ctx.match_any(';', "；"))
 				return scope_stack.pop_back(), ctx.err.NotFound("EOL");
 		set_desc:
@@ -858,7 +863,7 @@ class FVVV {
 		ctx.skip_blanks();
 		string name;
 		for (;;)
-			if (ctx.is_eof() || ctx.prematch('=', ':', "：", '<')) break;
+			if (ctx.is_eof() || ctx.prematch('=', ':', "：", '<')) break; // 注释会中断解析名称
 			else name += ctx.next();
 		if (name.empty()) return "";
 		return _trim_right(name), name;
@@ -880,6 +885,7 @@ class FVVV {
 				tgt_fwv._value = tgt_fwv._value.type == types::none
 									   ? tmp_str
 									   : (tgt_fwv.link.clear(), tgt_fwv._value._to_string() + tmp_str);
+				// 拼接时移除链接
 			} else {
 				for (;;)
 					if (ctx.is_eof() || ctx.prematch('<', '+') || ctx.prematch('\r', '\n')
@@ -895,6 +901,7 @@ class FVVV {
 										   ? ValueData(is_true)
 										   : (tgt_fwv.link.clear(),
 													 ValueData(tgt_fwv._value._to_string() + tmp_str));
+				// 拼接时移除链接
 				else {
 					ValueData tmp_value;
 					if (_try_parse_number(tmp_value, tmp_str))
@@ -903,13 +910,14 @@ class FVVV {
 										? tmp_value
 										: (tgt_fwv.link.clear(),
 												  ValueData(tgt_fwv._value._to_string() + tmp_str));
+					// 拼接时移除链接
 					else {
 						FVVV const* target = _find_key(tmp_str, scope_stack);
 						if (target) {
 							if (tgt_fwv._value.type != types::none && target->_value.type == types::list)
-								return ctx.err.PlusList();
+								return ctx.err.PlusList(); // 常规赋值仅允许基本类型与组
 							if (tgt_fwv._value.type == types::none) tgt_fwv.link = tmp_str;
-							else tgt_fwv.link.clear();
+							else tgt_fwv.link.clear();	   // 拼接时移除链接
 							tgt_fwv._value = tgt_fwv._value.type == types::none
 												   ? target->_value
 												   : ValueData(tgt_fwv._value._to_string()
@@ -919,7 +927,8 @@ class FVVV {
 					}
 				}
 			}
-			if (!(err = _parse_desc(ctx, idx_desc, scope_stack, false, true)).empty()) return err;
+			if (!(err = _parse_desc(ctx, idx_desc, scope_stack, false, true)).empty())
+				return err; // 只解析同行注释以避免串行
 			if (ctx.is_eof() || !ctx.is_same_line()
 					|| (in_list ? ctx.match_any(',', "，") || ctx.prematch(']', "］")
 								: ctx.match_any(';', "；")))
@@ -939,7 +948,8 @@ class FVVV {
 					if (ctx.is_eof()) return ctx.err.WhyEOF();
 					if (ctx.match('>', false)) {
 						FVVV* target = _find_key(desc, scope_stack);
-						if (target && target->is<string>()) desc = target->_value.get<string>();
+						if (target && target->is<string>())
+							desc = target->_value.get<string>(); // 只赋值字符串类型，避免过于宽泛
 						break;
 					}
 					if (ctx.match('\\', false)) {
@@ -972,7 +982,7 @@ class FVVV {
 			return text = _trim_indent(_trim(text)), "";
 		}
 
-		bool is_full_width = ctx.match("“");
+		bool is_full_width = ctx.match("“"); // 只在字符串上区分全角与半角引号，避免字符串使用困难
 		if (!is_full_width && !ctx.match('"')) return ctx.err.Unknown();
 		for (;;) {
 			if (ctx.is_eof()) return ctx.err.WhyEOF();
@@ -992,7 +1002,7 @@ class FVVV {
 	static inline bool _try_parse_number(ValueData& tgt_val, string const& tgt_str) {
 		if (tgt_str.empty()) return false;
 
-		char first = tgt_str[0];
+		char first = tgt_str[0]; // 加号的匹配永远都是失败的
 		if (!isdigit(static_cast<unsigned char>(first)) && first != '+' && first != '-' && first != '.')
 			return false;
 		if ((first == '+' || first == '-' || first == '.') && tgt_str.size() == 1) return false;
@@ -1041,7 +1051,7 @@ class FVVV {
 				has_exp = true, final_str += ch;
 
 				if (idx + 1 < tgt_str.size() && (tgt_str[idx + 1] == '+' || tgt_str[idx + 1] == '-'))
-					final_str += tgt_str[++idx];
+					final_str += tgt_str[++idx]; // 加号的匹配永远都是失败的
 			} else return false;
 		}
 
@@ -1051,7 +1061,7 @@ class FVVV {
 		if (!is_hex && !is_bin && (has_dot || has_exp)) {
 			char*  endptr;
 			double final_value = strtod(final_str.c_str(), &endptr);
-			if (*endptr != '\0') return false;
+			if (*endptr) return false;
 
 			tgt_val = final_value;
 			return true;
@@ -1062,7 +1072,7 @@ class FVVV {
 
 		char*	  endptr;
 		long long final_value = strtoll(final_str.c_str(), &endptr, base);
-		if (*endptr != '\0') return false;
+		if (*endptr) return false;
 
 		tgt_val = final_value;
 		return true;
@@ -1102,14 +1112,17 @@ class FVVV {
 	inline void _to_string_main(
 			FormatCtx const& ctx, string name, string& ret, size_t level, bool is_back) const {
 		if (name.empty() || (this->_value.type != types::text && this->empty() && this->nodes.empty()))
-			return;
+			return; // 名称为空 或 (值为无值且子值为空)（值为字符串说明不为无值，但是判空会判断空字符串，列表则是不允许为空）
 		ret.reserve(ret.length() + this->nodes.size() * 6);
 
 		FVVV const* tgt_node = this;
 		if (ctx.flatten_paths) {
 			name.reserve(name.length() + 6);
+
+			// 仅有一个子值 且 无描述模式或无描述 且 无链接模式或无链接
 			while (tgt_node->nodes.size() == 1 && (ctx.no_descs || tgt_node->desc.empty())
 					&& (ctx.no_links || tgt_node->link.empty())) {
+				// 不想写类型名，也不想写 auto
 				decltype(nodes)::value_type const& node_pair = tgt_node->nodes.front();
 
 				name += '.', name += node_pair.key();
@@ -1133,6 +1146,7 @@ class FVVV {
 				ret += _escape_string(tgt_node->desc, true);
 				if (!ctx.minify) ret += ' ';
 			}
+			if (ctx.full_width && ret.back() == ' ') ret.pop_back();
 			ret += ctx.fwv_begin;
 			if (!ctx.minify) ret += ctx.newline;
 			tgt_node->_to_string_root(ctx, ret, level + 1);
@@ -1163,6 +1177,7 @@ class FVVV {
 						}
 						return long_items >= 6;
 					});
+					// 长度达到 16 达到 6
 				}
 			}
 
@@ -1187,15 +1202,16 @@ class FVVV {
 			ret += ctx.list_end;
 		}
 
-		if (!ctx.no_descs
+		// 非无描述模式 且 描述非空 且 (无子值且非 FVV 列表 或 链接非空 或 非 FWW 样式)
+		if (!ctx.no_descs && !tgt_node->desc.empty()
 				&& ((tgt_node->nodes.empty()
 							&& (tgt_node->_value.type != types::list
 									|| tgt_node->_value._get_list().front().type != types::fwv))
-						|| !tgt_node->link.empty() || !ctx.fww_style)
-				&& !tgt_node->desc.empty()) {
+						|| !tgt_node->link.empty() || !ctx.fww_style)) {
+			// 非最小化模式 且 (非全角模式 或 链接非空 或 (无子值且非列表且非字符串) 或 非多行原始字符串)
 			if (!ctx.minify
 					&& (!ctx.full_width || !tgt_node->link.empty()
-							|| (tgt_node->_value.type != types::list
+							|| (tgt_node->nodes.empty() && tgt_node->_value.type != types::list
 									&& tgt_node->_value.type != types::text)
 							|| (tgt_node->_value.type == types::text && ret.back() == '`')))
 				ret += ' ';
@@ -1211,6 +1227,7 @@ class FVVV {
 			case types::boolean: ret += tgt_val._to_string(); break;
 
 			case types::integer: {
+				// 仅非十进制走整数逻辑
 				if (ctx.int_base != 10) {
 					long long tgt_int = tgt_val.get<long long>();
 
@@ -1260,6 +1277,7 @@ class FVVV {
 					break;
 				}
 			}
+			// 十进制整数走浮点数逻辑
 			case types::float_point: {
 				string raw_num = tgt_val._to_string();
 				if (!ctx.digit_sep_step) {
@@ -1291,13 +1309,14 @@ class FVVV {
 
 			case types::text: {
 				string tgt_str = tgt_val.get<string>();
+				// 非最小化模式且开启多行原始字符串模式时，如果长度达到 3 才进行判断
 				if (!ctx.minify && ctx.raw_str && tgt_str.length() >= 3) {
 					bool need_raw = false;
 					for (size_t idx = 0; idx < tgt_str.length(); ++idx) {
 						char ch = tgt_str[idx];
-						if (ch == '`') break;
+						if (ch == '`') break; // 字符串内不能有反引号
 						if ((ch == '\n' || ch == '\r') && idx > 0 && idx < tgt_str.length() - 1)
-							need_raw = true;
+							need_raw = true;  // 字符串中间有换行就可以多行原始字符串
 					}
 
 					if (need_raw) {
@@ -1334,7 +1353,7 @@ class FVVV {
 				FVVV const tgt_fwv = tgt_val.get<FVVV>();
 				if (ctx.fww_style && !tgt_fwv.desc.empty()) {
 					ret += _escape_string(tgt_fwv.desc, true);
-					if (!ctx.minify) ret += ' ';
+					if (!ctx.minify && !ctx.full_width) ret += ' ';
 				}
 				ret += ctx.fwv_begin;
 				if (!ctx.minify) ret += ctx.newline;
@@ -1345,7 +1364,7 @@ class FVVV {
 				}
 				ret += ctx.fwv_end;
 				if (!ctx.no_descs && !ctx.fww_style && !tgt_fwv.desc.empty()) {
-					if (!ctx.minify) ret += ' ';
+					if (!ctx.minify && !ctx.full_width) ret += ' ';
 					ret += _escape_string(tgt_fwv.desc, true);
 				}
 			}
