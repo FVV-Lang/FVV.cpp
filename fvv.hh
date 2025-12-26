@@ -90,11 +90,11 @@ struct KVList : public vector<KVPair<_key_type, _value_type>> {
 				this->end());
 	}
 	inline vector<_key_type> keys(void) const {
-		vector<_key_type> results;
-		results.reserve(this->size());
-		transform(this->begin(), this->end(), back_inserter(results),
+		vector<_key_type> rets;
+		rets.reserve(this->size());
+		transform(this->begin(), this->end(), back_inserter(rets),
 				[](_kv_type const& kv) { return kv.key(); });
-		return results;
+		return rets;
 	}
 	inline void erase_value(_value_type const& value) {
 		this->erase(remove_if(this->begin(), this->end(),
@@ -102,11 +102,11 @@ struct KVList : public vector<KVPair<_key_type, _value_type>> {
 				this->end());
 	}
 	inline vector<_value_type> values(void) const {
-		vector<_value_type> results;
-		results.reserve(this->size());
-		transform(this->begin(), this->end(), back_inserter(results),
+		vector<_value_type> rets;
+		rets.reserve(this->size());
+		transform(this->begin(), this->end(), back_inserter(rets),
 				[](_kv_type const& kv) { return kv.value(); });
-		return results;
+		return rets;
 	}
 	inline void sort(function<bool(_kv_type const&, _kv_type const&)> func = nullptr) {
 		static function<bool(_kv_type const&, _kv_type const&)> const dflt
@@ -324,7 +324,7 @@ class FVVV {
 		struct _getter {
 			// cppcheck-suppress unusedStructMember
 			constexpr static types const type = types::none;
-			static inline ValueType get(union _data_type const&) { return ValueType {}; }
+			static inline ValueType get(union _data_type const&) { return ValueType{}; }
 		};
 
 	   public:
@@ -341,19 +341,19 @@ class FVVV {
 		}
 		template<typename ValueType, typename enable_if<!_is_list<ValueType>::value, int>::type = 0>
 		inline ValueType get(void) const {
-			return this->is<ValueType>() ? _getter<ValueType>::get(_data) : ValueType {};
+			return this->is<ValueType>() ? _getter<ValueType>::get(_data) : ValueType{};
 		}
 		template<typename ListType, typename ValueType = typename ListType::value_type,
 				typename enable_if<_is_list<ListType>::value, int>::type = 0>
 		inline ListType get(void) const {
-			if (this->type != types::list) return ListType {};
-			ListType results;
-			results.reserve(_data._list->size());
-			transform(_data._list->begin(), _data._list->end(), back_inserter(results),
+			if (this->type != types::list) return ListType{};
+			ListType rets;
+			rets.reserve(_data._list->size());
+			transform(_data._list->begin(), _data._list->end(), back_inserter(rets),
 					[&](ValueData const& index_value) -> ValueType {
 				return index_value.get<ValueType>();
 			});
-			return results;
+			return rets;
 		}
 		inline bool empty(void) const noexcept {
 			switch (this->type) {
@@ -462,7 +462,7 @@ class FVVV {
 		return _value.is<ValueType>();
 	}
 	template<typename ValueType>
-	inline ValueType value(ValueType const& defaultValue = ValueType {}) const {
+	inline ValueType value(ValueType const& defaultValue = ValueType{}) const {
 		return _value.is<ValueType>() ? _value.get<ValueType>() : defaultValue;
 	}
 	template<typename ValueType>
@@ -1448,7 +1448,7 @@ class FVVV {
 
 		using ItemType = typename ValuesType::value_type;
 		for (ValueData const& item : values) {
-			ItemType tmp_value {};
+			ItemType tmp_value{};
 			if (item.type == types::fwv) item.get<FVVV>().to(tmp_value);
 			else {
 				FVVV tmp_fwv(item);
@@ -1533,12 +1533,12 @@ class FVVV {
 	static inline vector<string> _split_name(string const& target) {
 		if (target.empty()) return {};
 		if (target.find('.') == string::npos) return { target };
-		vector<string> results;
+		vector<string> rets;
 		stringstream   ss(target);
 		string		   item;
 		while (getline(ss, item, '.'))
-			if (!item.empty()) results.push_back(std::move(item));
-		return results;
+			if (!item.empty()) rets.push_back(std::move(item));
+		return rets;
 	}
 
 	template<size_t raw_len>
