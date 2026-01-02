@@ -593,10 +593,8 @@ class FVVV {
 		}
 
 		inline void skip_blanks(bool same_line = false) {
-			while (!is_eof())
-				if (!isspace(static_cast<unsigned char>(preview()))
-						|| (same_line && prematch('\n', '\r')))
-					break;
+			while (!is_eof() && isspace(static_cast<unsigned char>(preview())))
+				if (same_line && prematch('\n', '\r')) break;
 				else next();
 		}
 
@@ -861,9 +859,8 @@ class FVVV {
 	static inline string _parse_name(TextCtx& ctx) {
 		ctx.skip_blanks();
 		string name;
-		while (!ctx.is_eof())
-			if (ctx.prematch('=', ':', "：", '<')) break; // 注释会中断解析名称
-			else name += ctx.next();
+		while (!ctx.is_eof() && !ctx.prematch('=', ':', "：", '<')) // 注释会中断解析名称
+			name += ctx.next();
 		return name.empty() ? "" : (_trim_right(name), name);
 	}
 	static inline string _parse_value(TextCtx& ctx, vector<FVVV*> const& scope_stack, FVVV& tgt_fwv,
@@ -885,10 +882,8 @@ class FVVV {
 									   : (tgt_fwv.link.clear(), tgt_fwv._value._to_string() + tmp_str);
 				// 拼接时移除链接
 			} else {
-				for (;;)
-					if (ctx.is_eof() || ctx.prematch('<', '+') || ctx.prematch('\r', '\n')
-							|| (in_list ? ctx.prematch(',', "，", ']', "］") : ctx.prematch(';', "；")))
-						break;
+				while (!ctx.is_eof() && !ctx.prematch('<', '+') && !ctx.prematch('\r', '\n'))
+					if (in_list ? ctx.prematch(',', "，", ']', "］") : ctx.prematch(';', "；")) break;
 					else tmp_str += ctx.next();
 				_trim_right(tmp_str);
 				if (tmp_str.empty()) return ctx.err.NotFound("value");
@@ -914,13 +909,15 @@ class FVVV {
 						if (target) {
 							if (tgt_fwv._value.type != types::none && target->_value.type == types::list)
 								return ctx.err.PlusList(); // 常规赋值仅允许基本类型与组
-							if (tgt_fwv._value.type == types::none) tgt_fwv.link = tmp_str;
-							else tgt_fwv.link.clear();	   // 拼接时移除链接
-							tgt_fwv._value = tgt_fwv._value.type == types::none
-												   ? target->_value
-												   : ValueData(tgt_fwv._value._to_string()
-															   + target->_value._to_string());
-							tgt_fwv.nodes  = target->nodes;
+							if (tgt_fwv._value.type == types::none) {
+								tgt_fwv.link   = tmp_str;
+								tgt_fwv._value = target->_value;
+							} else {
+								tgt_fwv.link.clear(); // 拼接时移除链接
+								tgt_fwv._value = ValueData(
+										tgt_fwv._value._to_string() + target->_value._to_string());
+							}
+							tgt_fwv.nodes = target->nodes;
 						} else return ctx.err.NoValue(tmp_str);
 					}
 				}
