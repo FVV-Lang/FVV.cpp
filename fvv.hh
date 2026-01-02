@@ -476,10 +476,10 @@ class FVVV {
 				[](decltype(nodes)::value_type& item) { item.value().unlink(); });
 	}
 
-	inline string parse(string const& tgt_txt) {
-		if (_trim(tgt_txt).empty()) return "";
+	inline string parse(string const& text) {
+		if (_trim(text).empty()) return "";
 
-		TextCtx		  ctx(tgt_txt);
+		TextCtx		  ctx(text);
 		vector<FVVV*> scope_stack;
 		scope_stack.reserve(1);
 
@@ -547,19 +547,19 @@ class FVVV {
 		}
 
 		inline char preview(void) const noexcept { return is_eof() ? '\0' : input[index]; }
-		inline bool prematch(char tgt_ch) const noexcept { return preview() == tgt_ch; }
+		inline bool prematch(char tgt) const noexcept { return preview() == tgt; }
 		template<size_t raw_len>
-		inline bool prematch(char const (&tgt_ch)[raw_len]) const noexcept {
+		inline bool prematch(char const (&tgt)[raw_len]) const noexcept {
 			constexpr size_t const len = raw_len - 1;
-			return index + len <= input.length() && !input.compare(index, len, tgt_ch);
+			return index + len <= input.length() && !input.compare(index, len, tgt);
 		}
 		template<typename TgtType>
-		inline bool prematch(TgtType const& arg) const noexcept {
-			return prematch(arg);
+		inline bool prematch(TgtType const& tgt) const noexcept {
+			return prematch(tgt);
 		}
 		template<typename TgtType, typename... Args>
-		inline bool prematch(TgtType const& arg, Args&&... args) const noexcept {
-			return prematch(arg) || prematch(std::forward<Args>(args)...);
+		inline bool prematch(TgtType const& tgt, Args&&... tgts) const noexcept {
+			return prematch(tgt) || prematch(std::forward<Args>(tgts)...);
 		}
 
 		inline char next(void) {
@@ -573,28 +573,27 @@ class FVVV {
 			return ch;
 		}
 
-		inline bool match(char tgt_ch, bool skip_blanks = true, bool same_line = false) {
+		inline bool match(char tgt, bool skip_blanks = true, bool same_line = false) {
 			if (skip_blanks) this->skip_blanks(same_line);
-			return prematch(tgt_ch) && next();
+			return prematch(tgt) && next();
 		}
 		template<size_t raw_len>
-		inline bool match(
-				char const (&tgt_ch)[raw_len], bool skip_blanks = true, bool same_line = false) {
+		inline bool match(char const (&tgt)[raw_len], bool skip_blanks = true, bool same_line = false) {
 			constexpr size_t const len = raw_len - 1;
 			if (skip_blanks) this->skip_blanks(same_line);
-			return prematch(tgt_ch) && (index += len);
+			return prematch(tgt) && (index += len);
 		}
 		template<typename TgtType>
-		inline bool match_any(TgtType const& arg) {
-			return match(arg);
+		inline bool match_any(TgtType const& tgt) {
+			return match(tgt);
 		}
 		template<typename TgtType, typename... Args>
-		inline bool match_any(TgtType const& arg, Args&&... args) {
-			return match(arg) || match_any(std::forward<Args>(args)...);
+		inline bool match_any(TgtType const& tgt, Args&&... tgts) {
+			return match(tgt) || match_any(std::forward<Args>(tgts)...);
 		}
 
 		inline void skip_blanks(bool same_line = false) {
-			for (;;)
+			while (!is_eof())
 				if (!isspace(static_cast<unsigned char>(preview()))
 						|| (same_line && prematch('\n', '\r')))
 					break;
@@ -862,11 +861,10 @@ class FVVV {
 	static inline string _parse_name(TextCtx& ctx) {
 		ctx.skip_blanks();
 		string name;
-		for (;;)
-			if (ctx.is_eof() || ctx.prematch('=', ':', "：", '<')) break; // 注释会中断解析名称
+		while (!ctx.is_eof())
+			if (ctx.prematch('=', ':', "：", '<')) break; // 注释会中断解析名称
 			else name += ctx.next();
-		if (name.empty()) return "";
-		return _trim_right(name), name;
+		return name.empty() ? "" : (_trim_right(name), name);
 	}
 	static inline string _parse_value(TextCtx& ctx, vector<FVVV*> const& scope_stack, FVVV& tgt_fwv,
 			string& idx_desc, bool in_list = false) {
@@ -979,7 +977,7 @@ class FVVV {
 				if (ctx.match('`', false)) break;
 				text += ctx.next();
 			}
-			return text = _trim_indent(_trim(text)), "";
+			return text = _trim(_trim_indent(text)), "";
 		}
 
 		bool is_full_width = ctx.match("“"); // 只在字符串上区分全角与半角引号，避免字符串使用困难
@@ -1012,14 +1010,26 @@ class FVVV {
 		size_t idx = 0;
 		if (tgt_str[idx] == '+' || tgt_str[idx] == '-') final_str += tgt_str[idx++];
 
-		bool is_hex = false;
-		bool is_bin = false;
+		bool is_hex = false, is_oct = false, is_bin = false;
 		if (idx + 1 < tgt_str.size() && tgt_str[idx] == '0') {
 			switch (tgt_str[idx + 1]) {
 				case 'x':
 				case 'X': is_hex = true, final_str += "0x", idx += 2; break;
+				case 'o':
+				case 'O': is_oct = true, idx += 2; break;
 				case 'b':
 				case 'B': is_bin = true, idx += 2; break;
+				case '0':
+				case '1':
+				case '2':
+				case '3':
+				case '4':
+				case '5':
+				case '6':
+				case '7':
+					is_oct	   = true;
+					final_str += '0';
+					++idx;
 			}
 		}
 
@@ -1038,6 +1048,9 @@ class FVVV {
 
 			if (is_hex)
 				if (isxdigit(static_cast<unsigned char>(ch))) final_str += ch;
+				else return false;
+			else if (is_oct)
+				if (isdigit(static_cast<unsigned char>(ch)) && ch != '8' && ch != '9') final_str += ch;
 				else return false;
 			else if (is_bin)
 				if (ch == '0' || ch == '1') final_str += ch;
@@ -1058,23 +1071,24 @@ class FVVV {
 		if (final_str.empty() || final_str == "+" || final_str == "-") return false;
 		final_str.shrink_to_fit();
 
-		if (!is_hex && !is_bin && (has_dot || has_exp)) {
+		if (!is_hex && !is_oct && !is_bin && (has_dot || has_exp)) {
 			char*  endptr;
-			double final_value = strtod(final_str.c_str(), &endptr);
+			double final_val = strtod(final_str.c_str(), &endptr);
 			if (*endptr) return false;
 
-			tgt_val = final_value;
+			tgt_val = final_val;
 			return true;
 		}
 
 		int base = 0;
 		if (is_bin) base = 2;
+		else if (is_oct) base = 8;
 
 		char*	  endptr;
-		long long final_value = strtoll(final_str.c_str(), &endptr, base);
+		long long final_val = strtoll(final_str.c_str(), &endptr, base);
 		if (*endptr) return false;
 
-		tgt_val = final_value;
+		tgt_val = final_val;
 		return true;
 	}
 
@@ -1323,7 +1337,7 @@ class FVVV {
 						string const str_indent = indent + ctx.indent_unit;
 						ret.reserve(ret.length() + tgt_str.length());
 
-						tgt_str = _trim_indent(_trim(tgt_val.get<string>()));
+						tgt_str = _trim(_trim_indent(tgt_val.get<string>()));
 
 						ret += '`';
 						ret += ctx.newline;
