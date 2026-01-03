@@ -850,7 +850,8 @@ class FVVV {
 
 			if (!(err = _parse_desc(ctx, idx_desc, scope_stack, false, true)).empty())
 				return scope_stack.pop_back(), err; // 只解析同行注释以避免串行
-			if (ctx.is_same_line() && !ctx.is_eof() && !ctx.match_any(';', "；"))
+			if (ctx.is_same_line() && !ctx.is_eof() && !ctx.match_any(';', "；")
+					&& !ctx.prematch('}', "｝"))
 				return scope_stack.pop_back(), ctx.err.NotFound("EOL");
 		set_desc:
 			tgt_key->desc = idx_desc;
@@ -873,7 +874,8 @@ class FVVV {
 			if (!(err = _parse_desc(ctx, idx_desc, scope_stack, in_list, !in_list)).empty()) return err;
 			if (ctx.is_eof()
 					|| (in_list ? ctx.match_any(',', "，") || ctx.prematch(']', "］")
-								: !ctx.is_same_line() || ctx.match_any(';', "；")))
+								: !ctx.is_same_line() || ctx.match_any(';', "；")
+											|| ctx.prematch('}', "｝")))
 				return ctx.err.NotFound("value");
 
 			string tmp_str;
@@ -885,7 +887,8 @@ class FVVV {
 				// 拼接时移除链接
 			} else {
 				while (!ctx.is_eof() && !ctx.prematch('<', '+') && !ctx.prematch('\r', '\n'))
-					if (in_list ? ctx.prematch(',', "，", ']', "］") : ctx.prematch(';', "；")) break;
+					if (in_list ? ctx.prematch(',', "，", ']', "］") : ctx.prematch(';', "；", '}', "｝"))
+						break;
 					else tmp_str += ctx.next();
 				_trim_right(tmp_str);
 				if (tmp_str.empty()) return ctx.err.NotFound("value");
@@ -928,7 +931,7 @@ class FVVV {
 				return err; // 只解析同行注释以避免串行
 			if (ctx.is_eof() || !ctx.is_same_line()
 					|| (in_list ? ctx.match_any(',', "，") || ctx.prematch(']', "］")
-								: ctx.match_any(';', "；")))
+								: ctx.match_any(';', "；") || ctx.prematch('}', "｝")))
 				return "";
 
 			if (ctx.match('+')) continue;
