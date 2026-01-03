@@ -1173,7 +1173,7 @@ class FVVV {
 
 			bool multiline = false;
 			if (!ctx.minify && !ctx.list_single) {
-				if (!(multiline = (tgt_node->_value._get_list().front().type == types::fwv))) {
+				if (!(multiline = (raw_list.front().type == types::fwv))) {
 					unsigned char long_items = 0;
 					multiline = any_of(raw_list.begin(), raw_list.end(), [&](ValueData const& item) {
 						switch (item.type) {
@@ -1244,7 +1244,7 @@ class FVVV {
 
 					if (tgt_int == 0) {
 						if (ctx.int_base == 16) ret += "0x0";
-						else if (ctx.int_base == 8) ret += "0";
+						else if (ctx.int_base == 8) ret += "0o0";
 						else if (ctx.int_base == 2) ret += "0b0";
 						break;
 					}
@@ -1267,7 +1267,7 @@ class FVVV {
 						reverse(bin_str.begin(), bin_str.end());
 						ret += bin_str;
 					} else {
-						char const* fmt = (ctx.int_base == 16) ? "0x%llx" : "0%llo";
+						char const* fmt = ctx.int_base == 16 ? "0x%llx" : "0o%llo";
 #ifdef _MSC_VER
 						int len = _scprintf(fmt, uval);
 #else
@@ -1388,7 +1388,7 @@ class FVVV {
 		ret.reserve(str.length());
 
 		if (is_desc) ret += '<';
-		else ret += (full_width ? "“" : "\"");
+		else ret += full_width ? "“" : "\"";
 
 		for (size_t idx = 0; idx < str.length(); ++idx) {
 			char ch = str[idx];
