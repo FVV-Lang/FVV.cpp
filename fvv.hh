@@ -57,15 +57,15 @@ struct KVList : public vector<KVPair<_key_type, _value_type>> {
 	inline vector<_kv_type>&& data_rv(void) noexcept { return std::move(*this); }
 
 	inline _value_type& operator[](_key_type const& key) {
-		iterator it = find_if(
+		iterator iter = find_if(
 				this->begin(), this->end(), [&key](_kv_type const& kv) { return kv.key() == key; });
-		if (it != this->end()) return it->value();
+		if (iter != this->end()) return iter->value();
 		return this->emplace_back(key, _value_type()), this->back().value();
 	}
 	inline _key_type& operator()(_value_type const& value) {
-		iterator it = find_if(
+		iterator iter = find_if(
 				this->begin(), this->end(), [&value](_kv_type const& kv) { return kv.value() == value; });
-		if (it != this->end()) return it->key();
+		if (iter != this->end()) return iter->key();
 		return this->emplace_back(_key_type(), value), this->back().key();
 	}
 
@@ -528,6 +528,7 @@ class FVVV {
 
 	template<typename TgtType>
 	inline void from(TgtType const& target) {
+		this->unlink(); // 从外部赋值时移除链接
 		_from(target);
 	}
 
@@ -721,8 +722,9 @@ class FVVV {
 		inline explicit ReadBinder(FVVV const& node): node(node) {}
 		template<typename ValueType>
 		inline void operator()(string const& key, ValueType& value) {
-			KVList<string, FVVV>::const_iterator it = node.nodes.find_key(key);
-			if (it != node.nodes.end()) it->value().to(value);
+			// 不想写类型名，也不想写 auto
+			decltype(node.nodes)::const_iterator iter = node.nodes.find_key(key);
+			if (iter != node.nodes.end()) iter->value().to(value);
 		}
 	};
 	struct WriteBinder {
@@ -1464,7 +1466,6 @@ class FVVV {
 
 	template<typename StructType>
 	inline typename enable_if<_is_fvv_struct<StructType>::value>::type _from(StructType const& target) {
-		this->unlink();
 		this->_value.clear();
 		WriteBinder binder(*this);
 		const_cast<StructType&>(target).fvv_register(binder);
@@ -1476,7 +1477,6 @@ class FVVV {
 	}
 	template<typename ValuesType>
 	inline typename enable_if<_is_list<ValuesType>::value>::type _from(ValuesType const& target) {
-		this->unlink();
 		vector<ValueData> values;
 		values.reserve(target.size());
 
