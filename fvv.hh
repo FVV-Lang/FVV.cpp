@@ -1269,7 +1269,7 @@ class FVVV {
 					} else {
 						char const* fmt = ctx.int_base == 16 ? "0x%llx" : "0o%llo";
 #ifdef _MSC_VER
-						int len = _scprintf(fmt, uval);
+						int len = _scprintf(fmt, tgt_uint);
 #else
 						int len = snprintf(nullptr, 0, fmt, tgt_uint);
 #endif
@@ -1279,7 +1279,7 @@ class FVVV {
 						size_t ret_len = ret.length();
 						ret.resize(ret_len + len + 1);
 #ifdef _MSC_VER
-						_snprintf_s(&ret[ret_len], len + 1, _TRUNCATE, fmt, uval);
+						_snprintf_s(&ret[ret_len], len + 1, _TRUNCATE, fmt, tgt_uint);
 #else
 						snprintf(&ret[ret_len], len + 1, fmt, tgt_uint);
 #endif
@@ -1321,39 +1321,32 @@ class FVVV {
 			case types::text: {
 				string tgt_str = tgt_val.get<string>();
 				// 非最小化模式且开启多行原始字符串模式时，如果长度达到 3 才进行判断
-				if (!ctx.minify && ctx.raw_str && tgt_str.length() >= 3) {
-					bool need_raw = false;
+				if (!ctx.minify && ctx.raw_str && tgt_str.length() >= 3
+						&& tgt_str.find('`') == string::npos
+						&& _trim(tgt_str).find_first_of("\r\n") != string::npos) {
+					// 字符串内无反引号且中间有换行就可以多行原始字符串
+					string const str_indent = indent + ctx.indent_unit;
+					ret.reserve(ret.length() + tgt_str.length());
+
+					tgt_str = _trim(_trim_indent(tgt_val.get<string>()));
+
+					ret += '`';
+					ret += ctx.newline;
 					for (size_t idx = 0; idx < tgt_str.length(); ++idx) {
 						char ch = tgt_str[idx];
-						if (ch == '`') break; // 字符串内不能有反引号
-						if ((ch == '\n' || ch == '\r') && idx > 0 && idx < tgt_str.length() - 1)
-							need_raw = true;  // 字符串中间有换行就可以多行原始字符串
-					}
-
-					if (need_raw) {
-						string const str_indent = indent + ctx.indent_unit;
-						ret.reserve(ret.length() + tgt_str.length());
-
-						tgt_str = _trim(_trim_indent(tgt_val.get<string>()));
-
-						ret += '`';
-						ret += ctx.newline;
-						for (size_t idx = 0; idx < tgt_str.length(); ++idx) {
-							char ch = tgt_str[idx];
-							if (ch == '\r' || ch == '\n') {
-								if (ch == '\r' && idx + 1 < tgt_str.length() && tgt_str[idx + 1] == '\n')
-									++idx;
-								ret += ctx.newline;
-							} else {
-								if (ret.back() == '\r' || ret.back() == '\n') ret += str_indent;
-								ret += ch;
-							}
+						if (ch == '\r' || ch == '\n') {
+							if (ch == '\r' && idx + 1 < tgt_str.length() && tgt_str[idx + 1] == '\n')
+								++idx;
+							ret += ctx.newline;
+						} else {
+							if (ret.back() == '\r' || ret.back() == '\n') ret += str_indent;
+							ret += ch;
 						}
-						ret += ctx.newline;
-						ret += indent;
-						ret += '`';
-						break;
 					}
+					ret += ctx.newline;
+					ret += indent;
+					ret += '`';
+					break;
 				}
 				if (!level && ctx.full_width && ret.back() == ' ') ret.pop_back();
 				ret += _escape_string(tgt_str, false, ctx.full_width);
