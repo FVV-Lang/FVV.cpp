@@ -283,20 +283,20 @@ class FVVV {
 			ValueData tmp(std::forward<ValueType>(target));
 			return this->_swap(tmp), *this;
 		}
-		inline bool operator==(ValueData const& target) const noexcept {
+		inline bool operator==(ValueData const& other) const noexcept {
 			// 地址判断
-			if (this == &target) return true;
+			if (this == &other) return true;
 			// 类型判断
-			if (this->type != target.type) return false;
+			if (this->type != other.type) return false;
 			switch (this->type) {
 				// 基本值直接判断
-				case types::boolean	   : return this->_data._boolean == target._data._boolean;
-				case types::integer	   : return this->_data._integer == target._data._integer;
-				case types::float_point: return this->_data._float_point == target._data._float_point;
+				case types::boolean	   : return this->_data._boolean == other._data._boolean;
+				case types::integer	   : return this->_data._integer == other._data._integer;
+				case types::float_point: return this->_data._float_point == other._data._float_point;
 				// 指针解引判断
-				case types::text: return *(this->_data._text) == *(target._data._text);
-				case types::list: return *(this->_data._list) == *(target._data._list);
-				case types::fwv : return *(this->_data._fwv) == *(target._data._fwv);
+				case types::text: return *(this->_data._text) == *(other._data._text);
+				case types::list: return *(this->_data._list) == *(other._data._list);
+				case types::fwv : return *(this->_data._fwv) == *(other._data._fwv);
 				default			: return true;
 			}
 		}
@@ -417,37 +417,36 @@ class FVVV {
 	string link;
 
 	inline FVVV(void) noexcept = default;
-	inline FVVV(FVVV const& target):
-		_value(target._value), nodes(target.nodes), desc(target.desc), link(target.link) {}
-	inline FVVV(FVVV&& target) noexcept { this->_swap(target); }
+	inline FVVV(FVVV const& tgt): _value(tgt._value), nodes(tgt.nodes), desc(tgt.desc), link(tgt.link) {}
+	inline FVVV(FVVV&& tgt) noexcept { this->_swap(tgt); }
 	template<typename ValueType,
 			typename enable_if<!is_same<typename decay<ValueType>::type, FVVV>::value, int>::type = 0>
-	inline explicit FVVV(ValueType&& target): _value(std::forward<ValueType>(target)) {}
-	inline FVVV(char const* target, size_t len): _value(target, len) {}
+	inline explicit FVVV(ValueType&& tgt): _value(std::forward<ValueType>(tgt)) {}
+	inline FVVV(char const* tgt, size_t len): _value(tgt, len) {}
 
-	inline FVVV& operator=(FVVV const& target) {
-		if (this != &target) {
-			FVVV tmp(target);
+	inline FVVV& operator=(FVVV const& tgt) {
+		if (this != &tgt) {
+			FVVV tmp(tgt);
 			this->_swap(tmp);
 		}
 		return *this;
 	}
 	// cppcheck-suppress operatorEqRetRefThis
-	inline FVVV& operator=(FVVV&& target) noexcept { return this->_swap(target), *this; }
+	inline FVVV& operator=(FVVV&& tgt) noexcept { return this->_swap(tgt), *this; }
 	template<typename ValueType,
 			typename enable_if<!is_same<typename decay<ValueType>::type, FVVV>::value, int>::type = 0>
 	// cppcheck-suppress operatorEqRetRefThis
-	inline FVVV& operator=(ValueType&& target) {
-		return _value = std::forward<ValueType>(target), *this;
+	inline FVVV& operator=(ValueType&& tgt) {
+		return _value = std::forward<ValueType>(tgt), *this;
 	}
 
-	inline bool operator==(FVVV const& target) const noexcept {
+	inline bool operator==(FVVV const& other) const noexcept {
 		// 注释与赋值不考虑进判断范围内
-		return this == &target || (_value == target._value && nodes == target.nodes);
+		return this == &other || (_value == other._value && nodes == other.nodes);
 	}
-	inline bool operator!=(FVVV const& target) const noexcept {
+	inline bool operator!=(FVVV const& other) const noexcept {
 		// != 调用 == 判断
-		return this != &target && !(*this == target);
+		return this != &other && !(*this == other);
 	}
 	inline FVVV& operator[](string const& key) {
 		vector<string> const paths = _split_name(key);
@@ -816,8 +815,6 @@ class FVVV {
 					}
 					if (ctx.match_any(']', "］")) break; // 统一匹配
 				}
-				if (list_type == types::none)
-					return scope_stack.pop_back(), ctx.err.NotFound("value"); // 不允许空列表
 				if (list_type != types::fwv) {
 					for_each(tgt_list.begin(), tgt_list.end(), [list_type](ValueData& item) {
 						if (item.type == list_type) return;
@@ -942,32 +939,32 @@ class FVVV {
 			bool skip_blanks = true, bool same_line = false) {
 		for (;;) {
 			size_t orig_idx = ctx.index, orig_line = ctx.lines_start.size();
-			if (ctx.match('<', true, same_line)) {
-				desc.clear();
-				for (;;) {
-					if (ctx.is_eof()) return ctx.err.WhyEOF();
-					if (ctx.match('>', false)) {
-						FVVV* target = _find_key(desc, scope_stack);
-						if (target && target->is<string>())
-							desc = target->_value.get<string>(); // 只赋值字符串类型，避免过于宽泛
-						break;
-					}
-					if (ctx.match('\\', false)) {
-						if (ctx.is_eof()) return ctx.err.WhyEOF();
-						if (ctx.match('>', false)) desc += '>';
-						else {
-							char ch = ctx.next(), tgt = _escape_table[static_cast<unsigned char>(ch)];
-							if (tgt) desc += tgt;
-							else desc += '\\', desc += ch;
-						}
-					} else desc += ctx.next();
-				}
-			} else {
+			if (!ctx.match('<', true, same_line)) {
 				if (!skip_blanks) {
 					ctx.index = orig_idx;
 					while (ctx.lines_start.size() > orig_line) ctx.lines_start.pop();
 				}
 				break;
+			}
+
+			desc.clear();
+			for (;;) {
+				if (ctx.is_eof()) return ctx.err.WhyEOF();
+				if (ctx.match('>', false)) {
+					FVVV* target = _find_key(desc, scope_stack);
+					if (target && target->is<string>())
+						desc = target->_value.get<string>(); // 只赋值字符串类型，避免过于宽泛
+					break;
+				}
+				if (ctx.match('\\', false)) {
+					if (ctx.is_eof()) return ctx.err.WhyEOF();
+					if (ctx.match('>', false)) desc += '>';
+					else {
+						char ch = ctx.next(), tgt = _escape_table[static_cast<unsigned char>(ch)];
+						if (tgt) desc += tgt;
+						else desc += '\\', desc += ch;
+					}
+				} else desc += ctx.next();
 			}
 		}
 		return "";
