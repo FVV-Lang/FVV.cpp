@@ -665,7 +665,7 @@ class FVVV {
 		bool fww_style	   = false;
 
 		inline explicit FormatCtx(unsigned long flags) {
-			if (flags & FormatOpt::UseWrapper) use_wrapper = true;
+			use_wrapper = flags & FormatOpt::UseWrapper;
 
 			if (flags & FormatOpt::UseCRLF) newline = "\r\n";
 			else if (flags & FormatOpt::UseCR) newline = "\r";
