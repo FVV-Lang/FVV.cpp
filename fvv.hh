@@ -956,8 +956,8 @@ class FVVV {
 				if (ctx.is_eof()) return ctx.err.WhyEOF();
 				if (ctx.match('>', false)) {
 					FVVV* target = _find_key(desc, scope_stack);
-					if (target && target->is<string>())
-						desc = target->_value.get<string>(); // 只赋值字符串类型，避免过于宽泛
+					if (target && target->is<string>()) desc = target->_value.get<string>();
+					// 只赋值字符串类型，避免过于宽泛（不可赋值时则忽略，因为描述赋值是可选项）
 					break;
 				}
 				if (ctx.match('\\', false)) {
@@ -983,8 +983,8 @@ class FVVV {
 			return text = _trim(_trim_indent(text)), "";
 		}
 
-		bool is_full_width = ctx.match("“"); // 只在字符串上区分全角与半角引号，避免字符串使用困难
-		if (!is_full_width && !ctx.match('"')) return ctx.err.Unknown();
+		bool is_full_width = ctx.match("“") || !ctx.match('"');
+		// 只在字符串上区分全角与半角引号，避免字符串使用困难（判断时通过 || 消耗半角引号）
 		for (;;) {
 			if (ctx.is_eof()) return ctx.err.WhyEOF();
 			if (is_full_width ? ctx.match("”", false) : ctx.match('"', false)) return "";
@@ -1164,14 +1164,7 @@ class FVVV {
 				if (!ctx.minify) ret += ' ';
 			}
 			if (ctx.full_width && ret.back() == ' ') ret.pop_back();
-			ret += ctx.fwv_begin;
-			if (!ctx.minify) ret += ctx.newline;
-			tgt_node->_to_string_root(ctx, ret, level + 1);
-			if (!ctx.minify) {
-				ret += ctx.newline;
-				ret += indent;
-			}
-			ret += ctx.fwv_end;
+			_to_string_fwv(ctx, *tgt_node, ret, indent, level);
 		} else if (tgt_node->_value.type != types::list)
 			_to_string_value(ctx, tgt_node->_value, ret, indent);
 		else {
@@ -1249,9 +1242,11 @@ class FVVV {
 					long long tgt_int = tgt_val.get<long long>();
 
 					if (tgt_int == 0) {
-						if (ctx.int_base == 16) ret += "0x0";
-						else if (ctx.int_base == 8) ret += "0o0";
-						else if (ctx.int_base == 2) ret += "0b0";
+						switch (ctx.int_base) {
+							case 16: ret += "0x0"; break;
+							case 8 : ret += "0o0"; break;
+							case 2 : ret += "0b0"; break;
+						}
 						break;
 					}
 
@@ -1332,12 +1327,11 @@ class FVVV {
 						&& _trim(tgt_str).find_first_of("\r\n") != string::npos) {
 					// 字符串内无反引号且中间有换行就可以多行原始字符串
 					string const str_indent = indent + ctx.indent_unit;
-					ret.reserve(ret.length() + tgt_str.length());
+					ret.reserve(ret.length() + tgt_str.length() + str_indent.length() * 6);
 
 					tgt_str = _trim(_trim_indent(tgt_val.get<string>()));
 
-					ret += '`';
-					ret += ctx.newline;
+					ret += '`', ret += ctx.newline;
 					for (size_t idx = 0; idx < tgt_str.length(); ++idx) {
 						char ch = tgt_str[idx];
 						if (ch == '\r' || ch == '\n') {
@@ -1349,9 +1343,7 @@ class FVVV {
 							ret += ch;
 						}
 					}
-					ret += ctx.newline;
-					ret += indent;
-					ret += '`';
+					ret += ctx.newline, ret += indent, ret += '`';
 					break;
 				}
 				if (!level && ctx.full_width && ret.back() == ' ') ret.pop_back();
@@ -1365,14 +1357,7 @@ class FVVV {
 					ret += _escape_string(tgt_fwv.desc, true);
 					if (!ctx.minify && !ctx.full_width) ret += ' ';
 				}
-				ret += ctx.fwv_begin;
-				if (!ctx.minify) ret += ctx.newline;
-				tgt_fwv._to_string_root(ctx, ret, level + 1);
-				if (!ctx.minify) {
-					ret += ctx.newline;
-					ret += indent;
-				}
-				ret += ctx.fwv_end;
+				_to_string_fwv(ctx, tgt_fwv, ret, indent, level);
 				if (!ctx.no_descs && !ctx.fww_style && !tgt_fwv.desc.empty()) {
 					if (!ctx.minify && !ctx.full_width) ret += ' ';
 					ret += _escape_string(tgt_fwv.desc, true);
@@ -1382,9 +1367,17 @@ class FVVV {
 			default: break;
 		}
 	}
+	static inline void _to_string_fwv(
+			FormatCtx const& ctx, FVVV const& tgt_fwv, string& ret, string const& indent, size_t level) {
+		ret += ctx.fwv_begin;
+		if (!ctx.minify) ret += ctx.newline;
+		tgt_fwv._to_string_root(ctx, ret, level + 1);
+		if (!ctx.minify) ret += ctx.newline, ret += indent;
+		ret += ctx.fwv_end;
+	}
 	static inline string _escape_string(string const& str, bool is_desc, bool full_width = false) {
 		string ret;
-		ret.reserve(str.length());
+		ret.reserve(str.length() + 6);
 
 		if (is_desc) ret += '<';
 		else ret += full_width ? "“" : "\"";
