@@ -717,7 +717,7 @@ class FVVV {
 	struct _is_fvv_struct : false_type {};
 	template<typename StructType>
 	struct _is_fvv_struct<StructType,
-			_void<decltype(declval<StructType>().fvv_register(declval<struct AnyBinder&>()))>>
+			_void<decltype(declval<StructType>().fvv_values(declval<struct AnyBinder&>()))>>
 		: true_type {};
 
 	struct ReadBinder {
@@ -1424,7 +1424,7 @@ class FVVV {
 	template<typename StructType>
 	inline typename enable_if<_is_fvv_struct<StructType>::value>::type _to(StructType& target) const {
 		ReadBinder binder(*this);
-		target.fvv_register(binder);
+		target.fvv_values(binder);
 	}
 	template<typename ValueType>
 	inline typename enable_if<is_same<typename decay<ValueType>::type, string>::value>::type _to(
@@ -1465,7 +1465,7 @@ class FVVV {
 	inline typename enable_if<_is_fvv_struct<StructType>::value>::type _from(StructType const& target) {
 		this->_value.clear();
 		WriteBinder binder(*this);
-		const_cast<StructType&>(target).fvv_register(binder);
+		const_cast<StructType&>(target).fvv_values(binder);
 	}
 	template<typename ValueType>
 	inline typename enable_if<!_is_fvv_struct<ValueType>::value && !_is_list<ValueType>::value>::type
