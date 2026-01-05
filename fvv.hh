@@ -461,6 +461,10 @@ class FVVV {
 		return _value.is<ValueType>();
 	}
 	template<typename ValueType>
+	inline bool is_list(void) const noexcept {
+		return _value.is<vector<ValueType>>();
+	}
+	template<typename ValueType>
 	inline ValueType value(ValueType const& defaultValue = ValueType{}) const {
 		return _value.is<ValueType>() ? _value.get<ValueType>() : defaultValue;
 	}
