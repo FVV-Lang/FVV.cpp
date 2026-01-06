@@ -497,6 +497,13 @@ class FVVV {
 
 		return "";
 	}
+	template<typename TgtType>
+	inline string parse(string const& text, TgtType& target) {
+		string err = parse(text);
+		if (!err.empty()) return err;
+		to(target);
+		return "";
+	}
 
 	template<typename... Opts>
 	inline string to_string(Opts... opts) const {
@@ -514,14 +521,6 @@ class FVVV {
 		}
 
 		return ret.shrink_to_fit(), ret;
-	}
-
-	template<typename TgtType>
-	inline string parse(string const& text, TgtType& target) {
-		string err = parse(text);
-		if (!err.empty()) return err;
-		to(target);
-		return "";
 	}
 
 	template<typename TgtType>
@@ -717,8 +716,8 @@ class FVVV {
 	struct _is_fvv_struct : false_type {};
 	template<typename StructType>
 	struct _is_fvv_struct<StructType,
-			_void<decltype(declval<StructType>().fvv_values(declval<struct AnyBinder&>()))>>
-		: true_type {};
+			_void<decltype(declval<StructType>().fvv_values(declval<struct AnyBinder&>()))>> : true_type {
+	};
 
 	struct ReadBinder {
 		FVVV const& node;
