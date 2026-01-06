@@ -121,7 +121,7 @@ struct FormatOpt {
 	enum : unsigned long {
 		Common = 0,					  // 什么也没有，默认配置
 
-		UseWrapper = 1 << 0,		  // 最外面外面包裹一层花括号
+		UseWrapper = 1 << 0,		  // 最外面包裹一层 花括号
 
 		Minify = 1 << 1,			  // 最小化，移除所有缩进、空格、换行
 
@@ -135,19 +135,19 @@ struct FormatOpt {
 		IntOctal  = 1 << 7,			  // 输出整数为 八进制 格式，默认是十进制
 		IntHex	  = 1 << 8,			  // 输出整数为 十六进制 格式，默认是十进制
 
-		DigitSep3 = 1 << 9,			  // 输出整数或浮点数的整数部分时 每三个数字 插入一个分隔符
-		DigitSep4 = 1 << 10,		  // 输出整数或浮点数的整数部分时 每四个数字 插入一个分隔符
+		DigitSep3 = 1 << 9,			  // 输出 十进制整数 或 浮点数的整数部分 时每 3 个数字插入一个分隔符
+		DigitSep4 = 1 << 10,		  // 输出 十进制整数 或 浮点数的整数部分 时每 4 个数字插入一个分隔符
 
 		UseColon  = 1 << 11,		  // 使用 冒号 而非默认的 等号 作为定义符
 		FullWidth = 1 << 12,		  // 将部分符号改为 全角
 
 		KeepListSingle	   = 1 << 13, // 强制 列表 保持为一行
-		ForceUseSeparator  = 1 << 14, // 强制添加 分隔符，最小化时无效
-		RawMultilineString = 1 << 15, // 当 字符串 有多行时改为 有缩进的原始字符串，最小化时无效
+		ForceUseSeparator  = 1 << 14, // 强制添加 分隔符（最小化时无效）
+		RawMultilineString = 1 << 15, // 当 字符串 有多行时改为 原始多行缩进字符串（最小化时无效）
 
-		NoDescs		 = 1 << 16,		  // 移除所有描述，在 FWW 风格 下对 FVV 值列表 与 组 无效
+		NoDescs		 = 1 << 16,		  // 移除所有描述（在 FWW 风格 下对 组列表 与 组 无效）
 		NoLinks		 = 1 << 17,		  // 移除所有链接
-		FlattenPaths = 1 << 18,		  // 递归展平只有 一个值 的 组
+		FlattenPaths = 1 << 18,		  // 递归展平只有 1 个值的 组
 		FWWStyle	 = 1 << 19,		  // FWW 风格，前置 组 的 描述
 	};
 };
@@ -498,10 +498,10 @@ class FVVV {
 		return "";
 	}
 
-	template<typename... Args>
-	inline string to_string(Args... args) const {
+	template<typename... Opts>
+	inline string to_string(Opts... opts) const {
 		string	  ret;
-		FormatCtx ctx(_merge_flags(args...));
+		FormatCtx ctx(_merge_flags(opts...));
 
 		if (ctx.use_wrapper) {
 			ret += ctx.fwv_begin;
@@ -1114,9 +1114,9 @@ class FVVV {
 
    private:
 	constexpr static inline unsigned long _merge_flags() noexcept { return 0; }
-	template<typename... Args>
-	constexpr static inline unsigned long _merge_flags(unsigned long arg, Args... args) noexcept {
-		return arg | _merge_flags(args...);
+	template<typename... Opts>
+	constexpr static inline unsigned long _merge_flags(unsigned long opt, Opts... opts) noexcept {
+		return opt | _merge_flags(opts...);
 	}
 
 	inline void _to_string_root(FormatCtx const& ctx, string& ret, size_t level) const {
