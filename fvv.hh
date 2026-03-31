@@ -59,14 +59,12 @@ struct KVList : public vector<KVPair<_key_type, _value_type>> {
 	inline vector<_kv_type>&& data_rv(void) noexcept { return std::move(*this); }
 
 	inline _value_type& operator[](_key_type const& key) {
-		iterator iter = find_if(
-				this->begin(), this->end(), [&key](_kv_type const& kv) { return kv.key() == key; });
+		iterator iter = find_if(this->begin(), this->end(), [&key](_kv_type const& kv) { return kv.key() == key; });
 		if (iter != this->end()) return iter->value();
 		return this->emplace_back(key, _value_type()), this->back().value();
 	}
 	inline _key_type& operator()(_value_type const& value) {
-		iterator iter = find_if(
-				this->begin(), this->end(), [&value](_kv_type const& kv) { return kv.value() == value; });
+		iterator iter = find_if(this->begin(), this->end(), [&value](_kv_type const& kv) { return kv.value() == value; });
 		if (iter != this->end()) return iter->key();
 		return this->emplace_back(_key_type(), value), this->back().key();
 	}
@@ -75,39 +73,32 @@ struct KVList : public vector<KVPair<_key_type, _value_type>> {
 		return any_of(this->begin(), this->end(), [&key](_kv_type const& kv) { return kv.key() == key; });
 	}
 	inline bool contains_value(_value_type const& value) const {
-		return any_of(
-				this->begin(), this->end(), [&value](_kv_type const& kv) { return kv.value() == value; });
+		return any_of(this->begin(), this->end(), [&value](_kv_type const& kv) { return kv.value() == value; });
 	}
 	inline const_iterator find_key(_key_type const& key) const {
-		return find_if(
-				this->begin(), this->end(), [&key](_kv_type const& kv) { return kv.key() == key; });
+		return find_if(this->begin(), this->end(), [&key](_kv_type const& kv) { return kv.key() == key; });
 	}
 	inline const_iterator find_value(_value_type const& value) const {
-		return find_if(
-				this->begin(), this->end(), [&value](_kv_type const& kv) { return kv.value() == value; });
+		return find_if(this->begin(), this->end(), [&value](_kv_type const& kv) { return kv.value() == value; });
 	}
 	inline void erase_key(_key_type const& key) {
-		this->erase(remove_if(this->begin(), this->end(),
-							[&key](_kv_type const& kv) { return kv.key() == key; }),
-				this->end());
+		this->erase(
+				remove_if(this->begin(), this->end(), [&key](_kv_type const& kv) { return kv.key() == key; }), this->end());
 	}
 	inline vector<_key_type> keys(void) const {
 		vector<_key_type> rets;
 		rets.reserve(this->size());
-		transform(this->begin(), this->end(), back_inserter(rets),
-				[](_kv_type const& kv) { return kv.key(); });
+		transform(this->begin(), this->end(), back_inserter(rets), [](_kv_type const& kv) { return kv.key(); });
 		return rets;
 	}
 	inline void erase_value(_value_type const& value) {
-		this->erase(remove_if(this->begin(), this->end(),
-							[&value](_kv_type const& kv) { return kv.value() == value; }),
+		this->erase(remove_if(this->begin(), this->end(), [&value](_kv_type const& kv) { return kv.value() == value; }),
 				this->end());
 	}
 	inline vector<_value_type> values(void) const {
 		vector<_value_type> rets;
 		rets.reserve(this->size());
-		transform(this->begin(), this->end(), back_inserter(rets),
-				[](_kv_type const& kv) { return kv.value(); });
+		transform(this->begin(), this->end(), back_inserter(rets), [](_kv_type const& kv) { return kv.value(); });
 		return rets;
 	}
 	inline void sort(function<bool(_kv_type const&, _kv_type const&)> func = nullptr) {
@@ -194,67 +185,48 @@ class FVVV {
 
 	   public:
 		inline ValueData(void) noexcept: type(types::none), _data() {}
-		inline explicit ValueData(bool target) noexcept: type(types::boolean), _data() {
-			_data._boolean = target;
-		}
+		inline explicit ValueData(bool target) noexcept: type(types::boolean), _data() { _data._boolean = target; }
 		template<typename ValueType,
-				typename enable_if<is_integral<ValueType>::value && !is_same<ValueType, bool>::value,
-						int>::type
-				= 0>
+				typename enable_if<is_integral<ValueType>::value && !is_same<ValueType, bool>::value, int>::type = 0>
 		inline explicit ValueData(ValueType target) noexcept: type(types::integer), _data() {
 			_data._integer = static_cast<long long>(target);
 		}
-		template<typename ValueType,
-				typename enable_if<is_floating_point<ValueType>::value, int>::type = 0>
+		template<typename ValueType, typename enable_if<is_floating_point<ValueType>::value, int>::type = 0>
 		inline explicit ValueData(ValueType target) noexcept: type(types::float_point), _data() {
 			_data._float_point = static_cast<double>(target);
 		}
-		inline explicit ValueData(string const& target): type(types::text), _data() {
-			_data._text = new string(target);
-		}
-		inline explicit ValueData(string&& target): type(types::text), _data() {
-			_data._text = new string(std::move(target));
-		}
+		inline explicit ValueData(string const& target): type(types::text), _data() { _data._text = new string(target); }
+		inline explicit ValueData(string&& target): type(types::text), _data() { _data._text = new string(std::move(target)); }
 		inline explicit ValueData(vector<ValueData> const& target): type(types::list), _data() {
 			_data._list = new vector<ValueData>(target);
 		}
 		inline explicit ValueData(vector<ValueData>&& target): type(types::list), _data() {
 			_data._list = new vector<ValueData>(std::move(target));
 		}
-		inline explicit ValueData(FVVV const& target): type(types::fwv), _data() {
-			_data._fwv = new FVVV(target);
-		}
-		inline explicit ValueData(FVVV&& target): type(types::fwv), _data() {
-			_data._fwv = new FVVV(std::move(target));
-		}
-		template<typename ValueType,
-				typename enable_if<!is_same<typename decay<ValueType>::type, string>::value
-										   && !is_same<typename decay<ValueType>::type, ValueData>::value
-										   && is_constructible<string, ValueType>::value
-										   && !is_same<typename decay<ValueType>::type, nullptr_t>::value,
-						int>::type
-				= 0>
+		inline explicit ValueData(FVVV const& target): type(types::fwv), _data() { _data._fwv = new FVVV(target); }
+		inline explicit ValueData(FVVV&& target): type(types::fwv), _data() { _data._fwv = new FVVV(std::move(target)); }
+		template<typename ValueType, typename enable_if<!is_same<typename decay<ValueType>::type, string>::value
+																&& !is_same<typename decay<ValueType>::type, ValueData>::value
+																&& is_constructible<string, ValueType>::value
+																&& !is_same<typename decay<ValueType>::type, nullptr_t>::value,
+											 int>::type
+									 = 0>
 		inline explicit ValueData(ValueType&& target): type(types::text), _data() {
 			_data._text = new string(std::forward<ValueType>(target));
 		}
-		inline ValueData(char const* target, size_t len): type(types::text), _data() {
-			_data._text = new string(target, len);
-		}
-		template<typename ValueType,
-				typename enable_if<!is_same<ValueType, ValueData>::value, int>::type = 0>
+		inline ValueData(char const* target, size_t len): type(types::text), _data() { _data._text = new string(target, len); }
+		template<typename ValueType, typename enable_if<!is_same<ValueType, ValueData>::value, int>::type = 0>
 		inline explicit ValueData(vector<ValueType> const& target): type(types::list), _data() {
 			_data._list = new vector<ValueData>();
 			_data._list->reserve(target.size());
 			transform(target.begin(), target.end(), back_inserter(*_data._list),
 					[](ValueType const& item) { return ValueData(item); });
 		}
-		template<typename ValueType,
-				typename enable_if<!is_same<ValueType, ValueData>::value, int>::type = 0>
+		template<typename ValueType, typename enable_if<!is_same<ValueType, ValueData>::value, int>::type = 0>
 		inline explicit ValueData(vector<ValueType>&& target): type(types::list), _data() {
 			_data._list = new vector<ValueData>();
 			_data._list->reserve(target.size());
-			transform(make_move_iterator(target.begin()), make_move_iterator(target.end()),
-					back_inserter(*_data._list),
+			transform(make_move_iterator(target.begin()), make_move_iterator(target.end()), back_inserter(*_data._list),
 					[](ValueType&& item) { return ValueData(std::move(item)); });
 		}
 
@@ -278,8 +250,7 @@ class FVVV {
 		// cppcheck-suppress operatorEqRetRefThis
 		inline ValueData& operator=(ValueData&& target) noexcept { return this->_swap(target), *this; }
 		template<typename ValueType,
-				typename enable_if<!is_same<typename decay<ValueType>::type, ValueData>::value, int>::type
-				= 0>
+				typename enable_if<!is_same<typename decay<ValueType>::type, ValueData>::value, int>::type = 0>
 		// cppcheck-suppress operatorEqRetRefThis
 		inline ValueData& operator=(ValueType&& target) {
 			ValueData tmp(std::forward<ValueType>(target));
@@ -338,8 +309,7 @@ class FVVV {
 				typename enable_if<_is_list<ListType>::value, int>::type = 0>
 		inline bool is(void) const noexcept {
 			// 以第一个值的类型作为判断依据，因为不支持混合类型与空列表
-			return this->type == types::list && _data._list->size()
-				&& _data._list->front().type == _getter<ValueType>::type;
+			return this->type == types::list && _data._list->size() && _data._list->front().type == _getter<ValueType>::type;
 		}
 		template<typename ValueType, typename enable_if<!_is_list<ValueType>::value, int>::type = 0>
 		inline ValueType get(void) const {
@@ -352,9 +322,7 @@ class FVVV {
 			ListType rets;
 			rets.reserve(_data._list->size());
 			transform(_data._list->begin(), _data._list->end(), back_inserter(rets),
-					[&](ValueData const& index_value) -> ValueType {
-				return index_value.get<ValueType>();
-			});
+					[&](ValueData const& index_value) -> ValueType { return index_value.get<ValueType>(); });
 			return rets;
 		}
 		inline bool empty(void) const noexcept {
@@ -421,8 +389,7 @@ class FVVV {
 	inline FVVV(void) noexcept = default;
 	inline FVVV(FVVV const& tgt): _value(tgt._value), nodes(tgt.nodes), desc(tgt.desc), link(tgt.link) {}
 	inline FVVV(FVVV&& tgt) noexcept { this->_swap(tgt); }
-	template<typename ValueType,
-			typename enable_if<!is_same<typename decay<ValueType>::type, FVVV>::value, int>::type = 0>
+	template<typename ValueType, typename enable_if<!is_same<typename decay<ValueType>::type, FVVV>::value, int>::type = 0>
 	inline explicit FVVV(ValueType&& tgt): _value(std::forward<ValueType>(tgt)) {}
 	inline FVVV(char const* tgt, size_t len): _value(tgt, len) {}
 
@@ -435,8 +402,7 @@ class FVVV {
 	}
 	// cppcheck-suppress operatorEqRetRefThis
 	inline FVVV& operator=(FVVV&& tgt) noexcept { return this->_swap(tgt), *this; }
-	template<typename ValueType,
-			typename enable_if<!is_same<typename decay<ValueType>::type, FVVV>::value, int>::type = 0>
+	template<typename ValueType, typename enable_if<!is_same<typename decay<ValueType>::type, FVVV>::value, int>::type = 0>
 	// cppcheck-suppress operatorEqRetRefThis
 	inline FVVV& operator=(ValueType&& tgt) {
 		return _value = std::forward<ValueType>(tgt), *this;
@@ -453,8 +419,7 @@ class FVVV {
 	inline FVVV& operator[](string const& key) {
 		vector<string> const paths = _split_name(key);
 		// 支持路径分隔地递归
-		return *accumulate(paths.begin(), paths.end(), this,
-				[](FVVV* tgt, string const& path) { return &tgt->nodes[path]; });
+		return *accumulate(paths.begin(), paths.end(), this, [](FVVV* tgt, string const& path) { return &tgt->nodes[path]; });
 	}
 
 	inline bool empty(void) const noexcept { return _value.empty(); }
@@ -477,8 +442,7 @@ class FVVV {
 
 	inline void unlink(void) noexcept {
 		link.clear(), link.shrink_to_fit();
-		for_each(nodes.begin(), nodes.end(),
-				[](decltype(nodes)::value_type& item) { item.value().unlink(); });
+		for_each(nodes.begin(), nodes.end(), [](decltype(nodes)::value_type& item) { item.value().unlink(); });
 	}
 
 	inline string parse(string const& text) {
@@ -493,8 +457,7 @@ class FVVV {
 		string err		   = _parse_main(ctx, scope_stack);
 		if (!err.empty()) return err;
 
-		if (has_wrapper && (ctx.skip_blanks(), !ctx.match_any('}', "｝")))
-			return ctx.err.NotFound("wrapper");
+		if (has_wrapper && (ctx.skip_blanks(), !ctx.match_any('}', "｝"))) return ctx.err.NotFound("wrapper");
 		if (ctx.skip_blanks(), !ctx.is_eof()) return ctx.err.WhyNotEOF();
 
 		return "";
@@ -604,9 +567,7 @@ class FVVV {
 		}
 
 		inline bool is_eof(void) const noexcept { return index >= input.length(); }
-		inline bool is_same_line(void) {
-			return lines_start.size() == (skip_blanks(), lines_start.size());
-		}
+		inline bool is_same_line(void) { return lines_start.size() == (skip_blanks(), lines_start.size()); }
 
 		struct ErrHandler {
 		   private:
@@ -630,12 +591,8 @@ class FVVV {
 			inline string WhyEOF(void) const { return _make_error("Why EOF???"); }
 			inline string WhyNotEOF(void) const { return _make_error("Why not EOF???"); }
 			inline string NotFound(char tgt) const { return _make_error("Where is the '", tgt, "'?"); }
-			inline string NotFound(char const* tgt) const {
-				return _make_error("Where is the ", tgt, "?");
-			}
-			inline string NoValue(string const& tgt) const {
-				return _make_error("Cannot find the value of '", tgt, "'");
-			}
+			inline string NotFound(char const* tgt) const { return _make_error("Where is the ", tgt, "?"); }
+			inline string NoValue(string const& tgt) const { return _make_error("Cannot find the value of '", tgt, "'"); }
 			inline string PlusList(void) const { return _make_error("Why plus with list?"); }
 			inline string ValuePlusFVVV(void) const { return _make_error("Why value plus with FVVV?"); }
 		};
@@ -717,9 +674,8 @@ class FVVV {
 	template<typename StructType, typename = void>
 	struct _is_fvv_struct : false_type {};
 	template<typename StructType>
-	struct _is_fvv_struct<StructType,
-			_void<decltype(declval<StructType>().fvv_values(declval<struct AnyBinder&>()))>> : true_type {
-	};
+	struct _is_fvv_struct<StructType, _void<decltype(declval<StructType>().fvv_values(declval<struct AnyBinder&>()))>>
+		: true_type {};
 
 	struct ReadBinder {
 		FVVV const& node;
@@ -748,19 +704,16 @@ class FVVV {
 		for (;;) {
 			string idx_desc;
 			if (!(err = _parse_desc(ctx, idx_desc, scope_stack, false)).empty())
-				return scope_stack.pop_back(), err;	   // 不跳过最后一个注释后的空白
-			if (!ctx.is_same_line()) idx_desc.clear(); // 清理与值不在同一行的注释
+				return scope_stack.pop_back(), err;				// 不跳过最后一个注释后的空白
+			if (!ctx.is_same_line()) idx_desc.clear();			// 清理与值不在同一行的注释
 
-			if (ctx.is_eof() || ctx.prematch('}', "｝"))
-				break; // 块结尾可能是最外层包装或组，预匹配以交由外部处理
+			if (ctx.is_eof() || ctx.prematch('}', "｝")) break; // 块结尾可能是最外层包装或组，预匹配以交由外部处理
 
 			string name = _parse_name(ctx);
 			if (name.empty()) return scope_stack.pop_back(), ctx.err.NotFound("name");
-			if (!(err = _parse_desc(ctx, idx_desc, scope_stack)).empty())
-				return scope_stack.pop_back(), err;
+			if (!(err = _parse_desc(ctx, idx_desc, scope_stack)).empty()) return scope_stack.pop_back(), err;
 			if (!ctx.match_any('=', ':', "：")) return scope_stack.pop_back(), ctx.err.NotFound('=');
-			if (!(err = _parse_desc(ctx, idx_desc, scope_stack)).empty())
-				return scope_stack.pop_back(), err;
+			if (!(err = _parse_desc(ctx, idx_desc, scope_stack)).empty()) return scope_stack.pop_back(), err;
 
 			FVVV* tgt_key = &((*this)[name]);
 			if (ctx.match_any('[', "［")) {
@@ -768,18 +721,15 @@ class FVVV {
 				types			  list_type = types::none;
 				for (;;) {
 					string value_desc;
-					if (!(err = _parse_desc(ctx, value_desc, scope_stack, false)).empty())
-						return scope_stack.pop_back(), err;
+					if (!(err = _parse_desc(ctx, value_desc, scope_stack, false)).empty()) return scope_stack.pop_back(), err;
 					if (!ctx.is_same_line()) value_desc.clear();
 
 					if (ctx.is_eof()) return scope_stack.pop_back(), ctx.err.WhyEOF();
 					if (ctx.match_any('{', "｛")) {
 						list_type = types::fwv;
 						FVVV tmp_value;
-						if (!(err = tmp_value._parse_main(ctx, scope_stack)).empty())
-							return scope_stack.pop_back(), err;
-						if (!ctx.match_any('}', "｝"))
-							return scope_stack.pop_back(), ctx.err.NotFound('}');
+						if (!(err = tmp_value._parse_main(ctx, scope_stack)).empty()) return scope_stack.pop_back(), err;
+						if (!ctx.match_any('}', "｝")) return scope_stack.pop_back(), ctx.err.NotFound('}');
 						if (!(err = _parse_desc(ctx, value_desc, scope_stack, false, true)).empty())
 							return scope_stack.pop_back(), err; // 只解析同行注释以避免串行
 						tmp_value.desc = value_desc;
@@ -795,17 +745,16 @@ class FVVV {
 						if (tgt_fwv._value.type == types::list) {
 							vector<ValueData> tmp_list = tgt_fwv._value._get_list();
 							tgt_list.reserve(tgt_list.size() + tmp_list.size());
-							tgt_list.insert(tgt_list.end(), make_move_iterator(tmp_list.begin()),
-									make_move_iterator(tmp_list.end()));
-						} else if (tgt_fwv._value.type != types::none)
-							tgt_list.emplace_back(std::move(tgt_fwv._value));
+							tgt_list.insert(
+									tgt_list.end(), make_move_iterator(tmp_list.begin()), make_move_iterator(tmp_list.end()));
+						} else if (tgt_fwv._value.type != types::none) tgt_list.emplace_back(std::move(tgt_fwv._value));
 						else tgt_list.emplace_back(std::move(tgt_fwv));
 
 						if (list_type == types::none) list_type = tgt_list.back().type;
 						else if (list_type != tgt_list.back().type) {
 							if (list_type == types::fwv || tgt_list.back().type == types::fwv)
 								return scope_stack.pop_back(), ctx.err.ValuePlusFVVV(); // 不允许混合类型
-							switch (tgt_list.back().type) { // 字符串 > 浮点数 > 整数 > 布尔值
+							switch (tgt_list.back().type) {								// 字符串 > 浮点数 > 整数 > 布尔值
 								case types::text: list_type = types::text; break;
 								case types::float_point:
 									if (list_type != types::text) list_type = types::float_point;
@@ -826,14 +775,11 @@ class FVVV {
 						switch (list_type) { // 直接提升至列表中的最高类型
 							case types::text: item = item._to_string(); break;
 							case types::float_point:
-								if (item.type == types::integer)
-									item = static_cast<double>(item.get<long long>());
-								else if (item.type == types::boolean)
-									item = static_cast<double>(item.get<bool>());
+								if (item.type == types::integer) item = static_cast<double>(item.get<long long>());
+								else if (item.type == types::boolean) item = static_cast<double>(item.get<bool>());
 								break;
 							case types::integer:
-								if (item.type == types::boolean)
-									item = static_cast<long long>(item.get<bool>());
+								if (item.type == types::boolean) item = static_cast<long long>(item.get<bool>());
 								break;
 							default: break;
 						}
@@ -841,19 +787,16 @@ class FVVV {
 				}
 				tgt_key->_value = tgt_list;
 			} else if (ctx.match_any('{', "｛")) {
-				if (!(err = tgt_key->_parse_main(ctx, scope_stack)).empty())
-					return scope_stack.pop_back(), err;
+				if (!(err = tgt_key->_parse_main(ctx, scope_stack)).empty()) return scope_stack.pop_back(), err;
 				if (!ctx.match_any('}', "｝")) return scope_stack.pop_back(), ctx.err.NotFound('}');
 			} else {
-				if (!(err = _parse_value(ctx, scope_stack, *tgt_key, idx_desc)).empty())
-					return scope_stack.pop_back(), err;
+				if (!(err = _parse_value(ctx, scope_stack, *tgt_key, idx_desc)).empty()) return scope_stack.pop_back(), err;
 				goto set_desc;
 			}
 
 			if (!(err = _parse_desc(ctx, idx_desc, scope_stack, false, true)).empty())
 				return scope_stack.pop_back(), err; // 只解析同行注释以避免串行
-			if (ctx.is_same_line() && !ctx.is_eof() && !ctx.match_any(';', "；")
-					&& !ctx.prematch('}', "｝"))
+			if (ctx.is_same_line() && !ctx.is_eof() && !ctx.match_any(';', "；") && !ctx.prematch('}', "｝"))
 				return scope_stack.pop_back(), ctx.err.NotFound("EOL");
 		set_desc:
 			tgt_key->desc = idx_desc;
@@ -868,16 +811,15 @@ class FVVV {
 			name += ctx.next();
 		return name.empty() ? "" : (_trim_right(name), name);
 	}
-	static inline string _parse_value(TextCtx& ctx, vector<FVVV*> const& scope_stack, FVVV& tgt_fwv,
-			string& idx_desc, bool in_list = false) {
+	static inline string _parse_value(
+			TextCtx& ctx, vector<FVVV*> const& scope_stack, FVVV& tgt_fwv, string& idx_desc, bool in_list = false) {
 		for (;;) {
 			string err;
 
 			if (!(err = _parse_desc(ctx, idx_desc, scope_stack, in_list, !in_list)).empty()) return err;
 			if (ctx.is_eof()
 					|| (in_list ? ctx.match_any(',', "，") || ctx.prematch(']', "］")
-								: !ctx.is_same_line() || ctx.match_any(';', "；")
-											|| ctx.prematch('}', "｝")))
+								: !ctx.is_same_line() || ctx.match_any(';', "；") || ctx.prematch('}', "｝")))
 				return ctx.err.NotFound("value");
 
 			string tmp_str;
@@ -889,8 +831,7 @@ class FVVV {
 				// 拼接时移除链接
 			} else {
 				while (!ctx.is_eof() && !ctx.prematch('<', '+') && !ctx.prematch('\r', '\n'))
-					if (in_list ? ctx.prematch(',', "，", ']', "］") : ctx.prematch(';', "；", '}', "｝"))
-						break;
+					if (in_list ? ctx.prematch(',', "，", ']', "］") : ctx.prematch(';', "；", '}', "｝")) break;
 					else tmp_str += ctx.next();
 				_trim_right(tmp_str);
 				if (tmp_str.empty()) return ctx.err.NotFound("value");
@@ -899,17 +840,14 @@ class FVVV {
 				if (is_true || _iequals(tmp_str, "false"))
 					tgt_fwv._value = tgt_fwv._value.type == types::none
 										   ? ValueData(is_true)
-										   : (tgt_fwv.link.clear(),
-													 ValueData(tgt_fwv._value._to_string() + tmp_str));
+										   : (tgt_fwv.link.clear(), ValueData(tgt_fwv._value._to_string() + tmp_str));
 				// 拼接时移除链接
 				else {
 					ValueData tmp_value;
 					if (_try_parse_number(tmp_value, tmp_str))
-						tgt_fwv._value
-								= tgt_fwv._value.type == types::none
-										? tmp_value
-										: (tgt_fwv.link.clear(),
-												  ValueData(tgt_fwv._value._to_string() + tmp_str));
+						tgt_fwv._value = tgt_fwv._value.type == types::none
+											   ? tmp_value
+											   : (tgt_fwv.link.clear(), ValueData(tgt_fwv._value._to_string() + tmp_str));
 					// 拼接时移除链接
 					else {
 						FVVV const* target = _find_key(tmp_str, scope_stack);
@@ -921,16 +859,14 @@ class FVVV {
 								tgt_fwv._value = target->_value;
 							} else {
 								tgt_fwv.link.clear(); // 拼接时移除链接
-								tgt_fwv._value = ValueData(
-										tgt_fwv._value._to_string() + target->_value._to_string());
+								tgt_fwv._value = ValueData(tgt_fwv._value._to_string() + target->_value._to_string());
 							}
 							tgt_fwv.nodes = target->nodes;
 						} else return ctx.err.NoValue(tmp_str);
 					}
 				}
 			}
-			if (!(err = _parse_desc(ctx, idx_desc, scope_stack, false, true)).empty())
-				return err; // 只解析同行注释以避免串行
+			if (!(err = _parse_desc(ctx, idx_desc, scope_stack, false, true)).empty()) return err; // 只解析同行注释以避免串行
 			if (ctx.is_eof() || !ctx.is_same_line()
 					|| (in_list ? ctx.match_any(',', "，") || ctx.prematch(']', "］")
 								: ctx.match_any(';', "；") || ctx.prematch('}', "｝")))
@@ -940,8 +876,8 @@ class FVVV {
 			else return ctx.err.NotFound('+');
 		}
 	}
-	static inline string _parse_desc(TextCtx& ctx, string& desc, vector<FVVV*> const& scope_stack,
-			bool skip_blanks = true, bool same_line = false) {
+	static inline string _parse_desc(
+			TextCtx& ctx, string& desc, vector<FVVV*> const& scope_stack, bool skip_blanks = true, bool same_line = false) {
 		for (;;) {
 			size_t orig_idx = ctx.index, orig_line = ctx.lines_start.size();
 			if (!ctx.match('<', true, same_line)) {
@@ -1005,8 +941,7 @@ class FVVV {
 		if (tgt_str.empty()) return false;
 
 		char first = tgt_str[0]; // 加号的匹配永远都是失败的
-		if (!isdigit(static_cast<unsigned char>(first)) && first != '+' && first != '-' && first != '.')
-			return false;
+		if (!isdigit(static_cast<unsigned char>(first)) && first != '+' && first != '-' && first != '.') return false;
 		if ((first == '+' || first == '-' || first == '.') && tgt_str.size() == 1) return false;
 
 		string final_str;
@@ -1044,8 +979,7 @@ class FVVV {
 			if (ch == '\'') continue;
 			constexpr static char const	  right_quote[]	  = "’";
 			constexpr static size_t const right_quote_len = sizeof(right_quote) - 1;
-			if (idx + right_quote_len <= tgt_str.size()
-					&& !tgt_str.compare(idx, right_quote_len, right_quote)) {
+			if (idx + right_quote_len <= tgt_str.size() && !tgt_str.compare(idx, right_quote_len, right_quote)) {
 				idx += right_quote_len - 1;
 				continue;
 			}
@@ -1127,8 +1061,7 @@ class FVVV {
 			item.value()._to_string_main(ctx, item.key(), ret, level, &item == &nodes.back());
 		});
 	}
-	inline void _to_string_main(
-			FormatCtx const& ctx, string name, string& ret, size_t level, bool is_back) const {
+	inline void _to_string_main(FormatCtx const& ctx, string name, string& ret, size_t level, bool is_back) const {
 		if (name.empty() || (this->_value.type != types::text && this->empty() && this->nodes.empty()))
 			return; // 名称为空 或 (值为无值且子值为空)（值为字符串说明不为无值，但是判空会判断空字符串，列表则是不允许为空）
 		ret.reserve(ret.length() + this->nodes.size() * 6);
@@ -1166,8 +1099,7 @@ class FVVV {
 			}
 			if (ctx.full_width && ret.back() == ' ') ret.pop_back();
 			_to_string_fwv(ctx, *tgt_node, ret, indent, level);
-		} else if (tgt_node->_value.type != types::list)
-			_to_string_value(ctx, tgt_node->_value, ret, indent);
+		} else if (tgt_node->_value.type != types::list) _to_string_value(ctx, tgt_node->_value, ret, indent);
 		else {
 			vector<ValueData> const& raw_list = tgt_node->_value._get_list();
 
@@ -1175,19 +1107,19 @@ class FVVV {
 			if (!ctx.minify && !ctx.list_single) {
 				if (!(multiline = (raw_list.front().type == types::fwv))) {
 					unsigned char long_items = 0;
-					multiline = any_of(raw_list.begin(), raw_list.end(), [&](ValueData const& item) {
-						switch (item.type) {
-							case types::text:
-								if (item.get<string>().length() + 2 >= 16) ++long_items;
-								break;
-							case types::integer:
-							case types::float_point:
-								if (item._to_string().length() >= 16) ++long_items;
-								break;
-							default: break;
-						}
-						return long_items >= 6;
-					});
+					multiline				 = any_of(raw_list.begin(), raw_list.end(), [&](ValueData const& item) {
+						   switch (item.type) {
+							   case types::text:
+								   if (item.get<string>().length() + 2 >= 16) ++long_items;
+								   break;
+							   case types::integer:
+							   case types::float_point:
+								   if (item._to_string().length() >= 16) ++long_items;
+								   break;
+							   default: break;
+						   }
+						   return long_items >= 6;
+					   });
 					// 长度达到 16 达到 6
 				}
 			}
@@ -1232,8 +1164,8 @@ class FVVV {
 		if (ctx.minify || ctx.force_sep) ret += ctx.stmt_sep;
 		if (!ctx.minify && !is_back) ret += ctx.newline;
 	}
-	static inline void _to_string_value(FormatCtx const& ctx, ValueData const& tgt_val, string& ret,
-			string const& indent, size_t level = 0) {
+	static inline void _to_string_value(
+			FormatCtx const& ctx, ValueData const& tgt_val, string& ret, string const& indent, size_t level = 0) {
 		switch (tgt_val.type) {
 			case types::boolean: ret += tgt_val._to_string(); break;
 
@@ -1323,8 +1255,7 @@ class FVVV {
 			case types::text: {
 				string tgt_str = tgt_val.get<string>();
 				// 非最小化模式且开启多行原始字符串模式时，如果长度达到 3 才进行判断
-				if (!ctx.minify && ctx.raw_str && tgt_str.length() >= 3
-						&& tgt_str.find('`') == string::npos
+				if (!ctx.minify && ctx.raw_str && tgt_str.length() >= 3 && tgt_str.find('`') == string::npos
 						&& _trim(tgt_str).find_first_of("\r\n") != string::npos) {
 					// 字符串内无反引号且中间有换行就可以多行原始字符串
 					string const str_indent = indent + ctx.indent_unit;
@@ -1336,8 +1267,7 @@ class FVVV {
 					for (size_t idx = 0; idx < tgt_str.length(); ++idx) {
 						char ch = tgt_str[idx];
 						if (ch == '\r' || ch == '\n') {
-							if (ch == '\r' && idx + 1 < tgt_str.length() && tgt_str[idx + 1] == '\n')
-								++idx;
+							if (ch == '\r' && idx + 1 < tgt_str.length() && tgt_str[idx + 1] == '\n') ++idx;
 							ret += ctx.newline;
 						} else {
 							if (ret.back() == '\r' || ret.back() == '\n') ret += str_indent;
@@ -1389,8 +1319,7 @@ class FVVV {
 			if (full_width && !is_desc) {
 				constexpr static char const	  right_quote[]	  = "”";
 				constexpr static size_t const right_quote_len = sizeof(right_quote) - 1;
-				if (idx + right_quote_len <= str.length()
-						&& !str.compare(idx, right_quote_len, right_quote)) {
+				if (idx + right_quote_len <= str.length() && !str.compare(idx, right_quote_len, right_quote)) {
 					ret += "\\”";
 					idx += right_quote_len - 1;
 					continue;
@@ -1428,8 +1357,7 @@ class FVVV {
 		target.fvv_values(binder);
 	}
 	template<typename ValueType>
-	inline typename enable_if<is_same<typename decay<ValueType>::type, string>::value>::type _to(
-			ValueType& target) const {
+	inline typename enable_if<is_same<typename decay<ValueType>::type, string>::value>::type _to(ValueType& target) const {
 		if (this->is<ValueType>()) target = this->value<ValueType>();
 	}
 	template<typename ValueType>
@@ -1437,8 +1365,7 @@ class FVVV {
 		if (this->is<ValueType>()) target = this->value<ValueType>();
 		else if (is_integral<ValueType>::value && this->is<long long>())
 			target = static_cast<ValueType>(this->value<long long>());
-		else if (is_integral<ValueType>::value && this->is<double>())
-			target = static_cast<ValueType>(this->value<double>());
+		else if (is_integral<ValueType>::value && this->is<double>()) target = static_cast<ValueType>(this->value<double>());
 		else if (is_floating_point<ValueType>::value && this->is<long long>())
 			target = static_cast<ValueType>(this->value<long long>());
 	}
@@ -1469,8 +1396,8 @@ class FVVV {
 		const_cast<StructType&>(target).fvv_values(binder);
 	}
 	template<typename ValueType>
-	inline typename enable_if<!_is_fvv_struct<ValueType>::value && !_is_list<ValueType>::value>::type
-	_from(ValueType const& target) {
+	inline typename enable_if<!_is_fvv_struct<ValueType>::value && !_is_list<ValueType>::value>::type _from(
+			ValueType const& target) {
 		*this = target;
 	}
 	template<typename ValuesType>
@@ -1494,10 +1421,7 @@ class FVVV {
 	static array<char, numeric_limits<unsigned char>::max() + 1> const _escape_table;
 
 	static inline void _trim_right(string& str) {
-		str.erase(find_if(str.rbegin(), str.rend(),
-						  [](int ch) {
-			return !isspace(static_cast<unsigned char>(ch));
-		}).base(),
+		str.erase(find_if(str.rbegin(), str.rend(), [](int ch) { return !isspace(static_cast<unsigned char>(ch)); }).base(),
 				str.end());
 	}
 	static inline string _trim(string const& str) {
@@ -1525,8 +1449,7 @@ class FVVV {
 		string ret;
 		for (size_t idx = 0; idx < lines.size(); ++idx) {
 			string const& line = lines[idx];
-			if (line.length() >= min_indent && line.find_first_not_of(" \t") != string::npos)
-				ret += line.substr(min_indent);
+			if (line.length() >= min_indent && line.find_first_not_of(" \t") != string::npos) ret += line.substr(min_indent);
 			if (idx < lines.size() - 1) ret += '\n';
 		}
 		return ret;
@@ -1573,9 +1496,7 @@ struct FVVV::ValueData::_getter<long long> {
 template<>
 struct FVVV::ValueData::_getter<double> {
 	constexpr static types const type = types::float_point;
-	constexpr static inline double get(union _data_type const& data) noexcept {
-		return data._float_point;
-	}
+	constexpr static inline double get(union _data_type const& data) noexcept { return data._float_point; }
 };
 template<>
 struct FVVV::ValueData::_getter<string> {
